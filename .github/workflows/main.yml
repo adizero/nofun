@@ -46,13 +46,13 @@ jobs:
           Remove-Item -Recurse -Force build/${{ matrix.target.platform }}/nofun_BackUpThisFolder_ButDontShipItWithYourGame
           Remove-Item -Recurse -Force build/${{ matrix.target.platform }}/nofun_BurstDebugInformation_DoNotShip
         if: matrix.target.os != 'ubuntu-latest'
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         name: Upload artifacts (Android)
         with:
           name: nofun_${{ matrix.target.platform }}
           path: build/${{ matrix.target.platform }}/nofun.apk
         if: matrix.target.platform == 'Android'
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         name: Upload artifacts (Non-Android)
         with:
           name: nofun_${{ matrix.target.platform }}
