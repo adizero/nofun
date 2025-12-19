@@ -226,28 +226,62 @@ namespace Nofun
                 return;
             }
 
+            var fire1 = FindDescendant(mobileRoot, "Fire1") as RectTransform;
+            var fire2 = FindDescendant(mobileRoot, "Fire2") as RectTransform;
+
             // Base keypad size on the existing control block width.
             var keypadWidth = Mathf.Clamp(twoSides.rect.width * 0.45f, 300f, 700f);
             var keypadHeight = keypadWidth * 4f / 3f;
             const float spacing = 10f;
             const float margin = 25f;
 
+            // Default placement (fallback): centered above the existing controls.
+            var keypadParent = mobileRoot;
+            var keypadAnchorMin = new Vector2(0.5f, 0.5f);
+            var keypadAnchorMax = new Vector2(0.5f, 0.5f);
+            var keypadPivot = new Vector2(0.5f, 0.5f);
+            var keypadAnchoredPosition = new Vector2(0f, GetTopInParentSpace(mobileRoot, twoSides) + (keypadHeight * 0.5f) + margin);
+
+            // Preferred placement: replace the existing Fire1/Fire2 (A/B) buttons.
+            if (fire1 != null && fire2 != null && fire1.parent is RectTransform fireParent)
+            {
+                // Hide the old A/B buttons.
+                fire1.gameObject.SetActive(false);
+                fire2.gameObject.SetActive(false);
+
+                keypadParent = fireParent;
+                keypadAnchorMin = fire1.anchorMin;
+                keypadAnchorMax = fire1.anchorMax;
+                keypadPivot = new Vector2(1f, 0.5f);
+
+                var bounds1 = GetBoundsInParentSpace(fireParent, fire1);
+                var bounds2 = GetBoundsInParentSpace(fireParent, fire2);
+                var combined = Encapsulate(bounds1, bounds2);
+
+                // Anchor/pivot on the right edge (like the old buttons), grow left.
+                keypadAnchoredPosition = new Vector2(combined.max.x, combined.center.y);
+            }
+            else
+            {
+                // If we can only find one of them, still hide it.
+                if (fire1 != null) fire1.gameObject.SetActive(false);
+                if (fire2 != null) fire2.gameObject.SetActive(false);
+            }
+
             var keypadGo = new GameObject("Keypad",
                 typeof(RectTransform),
                 typeof(CanvasGroup),
                 typeof(UnityEngine.UI.Image),
                 typeof(GridLayoutGroup));
-            keypadGo.transform.SetParent(mobileRoot, false);
+            keypadGo.transform.SetParent(keypadParent, false);
             keypadGo.transform.SetAsLastSibling();
 
             var keypadRect = keypadGo.GetComponent<RectTransform>();
-            keypadRect.anchorMin = new Vector2(0.5f, 0.5f);
-            keypadRect.anchorMax = new Vector2(0.5f, 0.5f);
-            keypadRect.pivot = new Vector2(0.5f, 0.5f);
+            keypadRect.anchorMin = keypadAnchorMin;
+            keypadRect.anchorMax = keypadAnchorMax;
+            keypadRect.pivot = keypadPivot;
             keypadRect.sizeDelta = new Vector2(keypadWidth, keypadHeight);
-
-            // Position keypad above the existing controls (TwoSides).
-            keypadRect.anchoredPosition = new Vector2(0f, GetTopInParentSpace(mobileRoot, twoSides) + (keypadHeight * 0.5f) + margin);
+            keypadRect.anchoredPosition = keypadAnchoredPosition;
 
             var keypadImage = keypadGo.GetComponent<UnityEngine.UI.Image>();
             keypadImage.color = new Color(0f, 0f, 0f, 0.15f);
@@ -326,6 +360,33 @@ namespace Nofun
             var corners = new Vector3[4];
             child.GetWorldCorners(corners);
             return parent.InverseTransformPoint(corners[1]).y;
+        }
+
+        private static Bounds GetBoundsInParentSpace(RectTransform parent, RectTransform child)
+        {
+            var corners = new Vector3[4];
+            child.GetWorldCorners(corners);
+
+            var min = new Vector3(float.PositiveInfinity, float.PositiveInfinity, 0f);
+            var max = new Vector3(float.NegativeInfinity, float.NegativeInfinity, 0f);
+
+            for (var i = 0; i < 4; i++)
+            {
+                var p = parent.InverseTransformPoint(corners[i]);
+                min = Vector3.Min(min, p);
+                max = Vector3.Max(max, p);
+            }
+
+            var bounds = new Bounds();
+            bounds.SetMinMax(min, max);
+            return bounds;
+        }
+
+        private static Bounds Encapsulate(Bounds a, Bounds b)
+        {
+            a.Encapsulate(b.min);
+            a.Encapsulate(b.max);
+            return a;
         }
 
         private static Transform FindDescendant(Transform root, string name)
