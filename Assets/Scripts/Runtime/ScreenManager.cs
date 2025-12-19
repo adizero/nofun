@@ -15,6 +15,9 @@
  */
 
 using System.Collections;
+using System.Collections.Generic;
+using Nofun.Driver.Unity.Input;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
@@ -173,8 +176,174 @@ namespace Nofun
                 controlMobileLandscape.SetActive(false);
                 controlMobilePotrait.SetActive(false);
             }
+            else
+            {
+                StartCoroutine(SetupTouchKeypads());
+            }
 
             UpdateCanvasOrientation();
+        }
+
+        private IEnumerator SetupTouchKeypads()
+        {
+            // Wait a bit so RectTransforms have their final sizes.
+            for (var i = 0; i < 2; i++)
+            {
+                yield return null;
+            }
+
+            var inputDriver = FindObjectOfType<InputDriver>();
+            if (inputDriver == null)
+            {
+                yield break;
+            }
+
+            EnsureKeypad(controlMobilePotrait, inputDriver);
+            EnsureKeypad(controlMobileLandscape, inputDriver);
+        }
+
+        private void EnsureKeypad(GameObject controlRoot, InputDriver inputDriver)
+        {
+            if (controlRoot == null)
+            {
+                return;
+            }
+
+            var mobileRoot = FindDescendant(controlRoot.transform, "Mobile") as RectTransform;
+            if (mobileRoot == null)
+            {
+                return;
+            }
+
+            if (mobileRoot.Find("Keypad") != null)
+            {
+                return;
+            }
+
+            var twoSides = FindDescendant(mobileRoot, "TwoSides") as RectTransform;
+            if (twoSides == null)
+            {
+                return;
+            }
+
+            // Base keypad size on the existing control block width.
+            var keypadWidth = Mathf.Clamp(twoSides.rect.width * 0.45f, 300f, 700f);
+            var keypadHeight = keypadWidth * 4f / 3f;
+            const float spacing = 10f;
+            const float margin = 25f;
+
+            var keypadGo = new GameObject("Keypad",
+                typeof(RectTransform),
+                typeof(CanvasGroup),
+                typeof(UnityEngine.UI.Image),
+                typeof(GridLayoutGroup));
+            keypadGo.transform.SetParent(mobileRoot, false);
+            keypadGo.transform.SetAsLastSibling();
+
+            var keypadRect = keypadGo.GetComponent<RectTransform>();
+            keypadRect.anchorMin = new Vector2(0.5f, 0.5f);
+            keypadRect.anchorMax = new Vector2(0.5f, 0.5f);
+            keypadRect.pivot = new Vector2(0.5f, 0.5f);
+            keypadRect.sizeDelta = new Vector2(keypadWidth, keypadHeight);
+
+            // Position keypad above the existing controls (TwoSides).
+            keypadRect.anchoredPosition = new Vector2(0f, GetTopInParentSpace(mobileRoot, twoSides) + (keypadHeight * 0.5f) + margin);
+
+            var keypadImage = keypadGo.GetComponent<UnityEngine.UI.Image>();
+            keypadImage.color = new Color(0f, 0f, 0f, 0.15f);
+            keypadImage.raycastTarget = false;
+
+            var keypadGroup = keypadGo.GetComponent<CanvasGroup>();
+            keypadGroup.alpha = 1f;
+
+            var grid = keypadGo.GetComponent<GridLayoutGroup>();
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 3;
+            grid.spacing = new Vector2(spacing, spacing);
+            grid.childAlignment = TextAnchor.MiddleCenter;
+
+            var cellWidth = (keypadWidth - (spacing * 2f)) / 3f;
+            var cellHeight = (keypadHeight - (spacing * 3f)) / 4f;
+            grid.cellSize = new Vector2(cellWidth, cellHeight);
+
+            foreach (var keypadKey in GetKeypadKeys())
+            {
+                CreateKeyButton(keypadGo.transform, inputDriver, keypadKey);
+            }
+        }
+
+        private static IEnumerable<char> GetKeypadKeys()
+        {
+            yield return '1';
+            yield return '2';
+            yield return '3';
+            yield return '4';
+            yield return '5';
+            yield return '6';
+            yield return '7';
+            yield return '8';
+            yield return '9';
+            yield return '*';
+            yield return '0';
+            yield return '#';
+        }
+
+        private static void CreateKeyButton(Transform parent, InputDriver inputDriver, char keypadKey)
+        {
+            var buttonGo = new GameObject($"Key_{keypadKey}",
+                typeof(RectTransform),
+                typeof(UnityEngine.UI.Image),
+                typeof(UnityEngine.UI.Button),
+                typeof(global::Nofun.TouchKeypadButton));
+
+            buttonGo.transform.SetParent(parent, false);
+
+            var image = buttonGo.GetComponent<UnityEngine.UI.Image>();
+            image.color = new Color(1f, 1f, 1f, 0.75f);
+
+            var touchHandler = buttonGo.GetComponent<global::Nofun.TouchKeypadButton>();
+            touchHandler.Init(inputDriver, keypadKey);
+
+            var textGo = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+            textGo.transform.SetParent(buttonGo.transform, false);
+
+            var textRect = textGo.GetComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+
+            var text = textGo.GetComponent<TextMeshProUGUI>();
+            text.text = keypadKey.ToString();
+            text.alignment = TextAlignmentOptions.Center;
+            text.fontSize = 40;
+            text.color = Color.black;
+            text.raycastTarget = false;
+        }
+
+        private static float GetTopInParentSpace(RectTransform parent, RectTransform child)
+        {
+            var corners = new Vector3[4];
+            child.GetWorldCorners(corners);
+            return parent.InverseTransformPoint(corners[1]).y;
+        }
+
+        private static Transform FindDescendant(Transform root, string name)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            foreach (var t in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (t.name == name)
+                {
+                    return t;
+                }
+            }
+
+            return null;
         }
     }
 }
