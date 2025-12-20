@@ -271,6 +271,10 @@ namespace Nofun
                 {
                     keypadAnchoredPosition += new Vector2(-1.75f * cellWidth, cellHeight);
                 }
+                else
+                {
+                    keypadAnchoredPosition += new Vector2(-0.18f * cellWidth, 0);
+                }
             }
             else
             {
