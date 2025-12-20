@@ -198,11 +198,11 @@ namespace Nofun
                 yield break;
             }
 
-            EnsureKeypad(controlMobilePotrait, inputDriver);
-            EnsureKeypad(controlMobileLandscape, inputDriver);
+            EnsureKeypad(controlMobilePotrait, inputDriver, isLandscape: false);
+            EnsureKeypad(controlMobileLandscape, inputDriver, isLandscape: true);
         }
 
-        private void EnsureKeypad(GameObject controlRoot, InputDriver inputDriver)
+        private void EnsureKeypad(GameObject controlRoot, InputDriver inputDriver, bool isLandscape)
         {
             if (controlRoot == null)
             {
@@ -235,12 +235,16 @@ namespace Nofun
             const float spacing = 10f;
             const float margin = 25f;
 
+            var cellWidth = (keypadWidth - (spacing * 2f)) / 3f;
+            var cellHeight = (keypadHeight - (spacing * 3f)) / 4f;
+
             // Default placement (fallback): centered above the existing controls.
             var keypadParent = mobileRoot;
             var keypadAnchorMin = new Vector2(0.5f, 0.5f);
             var keypadAnchorMax = new Vector2(0.5f, 0.5f);
             var keypadPivot = new Vector2(0.5f, 0.5f);
             var keypadAnchoredPosition = new Vector2(0f, GetTopInParentSpace(mobileRoot, twoSides) + (keypadHeight * 0.5f) + margin);
+            var usedFireButtonsPlacement = false;
 
             // Preferred placement: replace the existing Fire1/Fire2 (A/B) buttons.
             if (fire1 != null && fire2 != null && fire1.parent is RectTransform fireParent)
@@ -260,6 +264,13 @@ namespace Nofun
 
                 // Anchor/pivot on the right edge (like the old buttons), grow left.
                 keypadAnchoredPosition = new Vector2(combined.max.x, combined.center.y);
+                usedFireButtonsPlacement = true;
+
+                // Landscape tweak: shift left/up so the keypad stays on-screen.
+                if (isLandscape)
+                {
+                    keypadAnchoredPosition += new Vector2(-1.75f * cellWidth, cellHeight);
+                }
             }
             else
             {
@@ -296,8 +307,6 @@ namespace Nofun
             grid.spacing = new Vector2(spacing, spacing);
             grid.childAlignment = TextAnchor.MiddleCenter;
 
-            var cellWidth = (keypadWidth - (spacing * 2f)) / 3f;
-            var cellHeight = (keypadHeight - (spacing * 3f)) / 4f;
             grid.cellSize = new Vector2(cellWidth, cellHeight);
 
             foreach (var keypadKey in GetKeypadKeys())
