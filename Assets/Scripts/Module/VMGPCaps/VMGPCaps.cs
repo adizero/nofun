@@ -140,6 +140,21 @@ namespace Nofun.Module.VMGPCaps
             return 1;
         }
 
+        private int GetCapsInput(VMPtr<InputCaps> capsPtr)
+        {
+            // The emulator provides a numeric keypad (on-screen or through key
+            // mappings). Pointer input is not currently forwarded to games.
+            InputCaps caps = new InputCaps()
+            {
+                size = (ushort)Marshal.SizeOf<InputCaps>(),
+                flags = (ushort)InputCapsFlags.NumericKeypad,
+                keycount = 12
+            };
+
+            capsPtr.Write(system.Memory, caps);
+            return 1;
+        }
+
         private int GetCapsComms(VMPtr<CommCaps> capsPtr)
         {
             CommCaps caps = new CommCaps()
@@ -159,6 +174,9 @@ namespace Nofun.Module.VMGPCaps
             {
                 case CapsQueryType.Video:
                     return GetCapsVideo(buffer.Cast<VideoCaps>());
+
+                case CapsQueryType.Input:
+                    return GetCapsInput(buffer.Cast<InputCaps>());
 
                 case CapsQueryType.System:
                     return GetCapsSystem(buffer.Cast<SystemCaps>());
