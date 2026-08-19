@@ -57,6 +57,52 @@ namespace Nofun.Module.VMGP3D
         }
 
         [ModuleCall]
+        private uint vGetSupportedRenderStates(RenderState state)
+        {
+            switch (state)
+            {
+                case RenderState.CullMode:
+                case RenderState.ZEnable:
+                case RenderState.ZFunction:
+                case RenderState.ShadeMode:
+                case RenderState.FogEnable:
+                case RenderState.TextureEnable:
+                case RenderState.PerspectiveEnable:
+                case RenderState.TextureBlendMode:
+                case RenderState.AlphaEnable:
+                case RenderState.FilterMode:
+                case RenderState.WrapMode:
+                case RenderState.TransparentEnable:
+                case RenderState.SpecularEnable:
+                case RenderState.LightingEnable:
+                case RenderState.ColorBufferBlendMode:
+                    // All values of these render states are handled
+                    return 0xFFFFFFFF;
+
+                default:
+                    return 0;
+            }
+        }
+
+        [ModuleCall]
+        private ushort vGetZBufferValue(ushort x, ushort y)
+        {
+            // Depth readback is not implemented. Report the far plane, so
+            // depth-based visibility checks (e.g. lens flares) treat the
+            // point as unoccluded.
+            Logger.Trace(LogClass.VMGP3D, "Get z-buffer value stubbed to the far plane");
+            return 0xFFFF;
+        }
+
+        [ModuleCall]
+        private uint vSetFunctionalTexture(VMPtr<byte> texturePtr, uint size)
+        {
+            // Undocumented in the SDK and not supported by the renderer
+            Logger.Warning(LogClass.VMGP3D, "Set functional texture is not implemented");
+            return 0;
+        }
+
+        [ModuleCall]
         private void vSetRenderState(RenderState state, uint value)
         {
             switch (state)

@@ -48,6 +48,12 @@ namespace Nofun.Module.VMGP3D
         }
 
         [ModuleCall]
+        private int vPow(int fixedV, byte exponent)
+        {
+            return FixedUtil.FloatToFixed((float)Math.Pow(FixedUtil.FixedToFloat(fixedV), exponent));
+        }
+
+        [ModuleCall]
         private int vTan(int fixedV)
         {
             return FixedUtil.FloatToFixed((float)Math.Tan(FixedUtil.Fixed11PointToFloat((short)fixedV) * MathUtil.FullCircleRads));

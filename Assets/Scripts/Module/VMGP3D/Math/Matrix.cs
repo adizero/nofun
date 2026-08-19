@@ -151,6 +151,12 @@ namespace Nofun.Module.VMGP3D
         }
 
         [ModuleCall]
+        private void vMatrixTranspose()
+        {
+            currentMatrix = currentMatrix.transpose;
+        }
+
+        [ModuleCall]
         private void vMatrixMultiply(VMPtr<V3DMatrix> matrixPtr)
         {
             currentMatrix *= ReadMatrix(matrixPtr);
