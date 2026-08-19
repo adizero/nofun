@@ -165,6 +165,24 @@ namespace Nofun.Module.VMGP
         }
 
         [ModuleCall]
+        private uint vMapHeaderUpdate(VMPtr<NativeMapHeader> header)
+        {
+            NativeMapHeader headerData = header.Read(system.Memory);
+            if (UpdateMapAtlas(headerData) == 0)
+            {
+                return 0;
+            }
+
+            // Unlike vMapInit, keep the current animation state
+            mapHeader = headerData;
+
+            RefreshMapAtlasValidStatus(true);
+            mapExisting = true;
+
+            return 1;
+        }
+
+        [ModuleCall]
         private void vMapDispose()
         {
             mapExisting = false;

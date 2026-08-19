@@ -26,6 +26,7 @@ namespace Nofun.Module.VMStream
     {
         private VMSystem system;
         private SimpleObjectManager<IVMHostStream> streams;
+        private System.Collections.Generic.Dictionary<int, uint> streamModes = new();
 
         public IVMHostStream GetStream(int handle)
         {
@@ -92,7 +93,10 @@ namespace Nofun.Module.VMStream
                 return -1;
             }
 
-            return streams.Add(targetedStream);
+            int handle = streams.Add(targetedStream);
+            streamModes[handle] = mode;
+
+            return handle;
         }
 
         [ModuleCall]
@@ -123,6 +127,43 @@ namespace Nofun.Module.VMStream
 
 
         [ModuleCall]
+        private int vStreamFrom(int handle, VMPtr<byte> buffer, int count, VMPtr<Any> args)
+        {
+            // Type-specific arguments only matter for datagram-like streams,
+            // which are not implemented. Behaves like vStreamRead.
+            return vStreamRead(handle, buffer, count);
+        }
+
+        [ModuleCall]
+        private int vStreamTo(int handle, VMPtr<byte> buffer, int count, VMPtr<Any> args)
+        {
+            return vStreamWrite(handle, buffer, count);
+        }
+
+        [ModuleCall]
+        private int vStreamReady(int handle, int mode)
+        {
+            IVMHostStream stream = streams.Get(handle);
+            if (stream == null)
+            {
+                return -1;
+            }
+
+            return stream.Ready() & mode;
+        }
+
+        [ModuleCall]
+        private int vStreamMode(int handle)
+        {
+            if (!streamModes.TryGetValue(handle, out uint mode))
+            {
+                return -1;
+            }
+
+            return (int)mode;
+        }
+
+        [ModuleCall]
         private int vStreamSeek(int handle, int where, StreamSeekMode whence)
         {
             IVMHostStream stream = streams.Get(handle);
@@ -142,6 +183,7 @@ namespace Nofun.Module.VMStream
             {
                 stream.OnClose();
                 streams.Remove(handle);
+                streamModes.Remove(handle);
             }
         }
 

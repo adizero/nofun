@@ -42,6 +42,12 @@ namespace Nofun.Module.VMGP
         }
 
         [ModuleCall]
+        private VMPtr<Any> vNewPtrDbg(uint size, VMString fileName, int line)
+        {
+            return vNewPtr(size);
+        }
+
+        [ModuleCall]
         private VMPtr<Any> vNewPtr(uint size)
         {
             long offset = heapAllocator.Allocate(size);

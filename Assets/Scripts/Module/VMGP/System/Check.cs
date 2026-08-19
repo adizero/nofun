@@ -30,6 +30,22 @@ namespace Nofun.Module.VMGP
         }
 
         [ModuleCall]
+        private int vCheckIMEI(VMString imei)
+        {
+            // Report a match so device-locked games keep running
+            Logger.Trace(LogClass.VMGPSystem, "Check IMEI stubbed with success");
+            return 1;
+        }
+
+        [ModuleCall]
+        private int vCheckNetwork(VMString netstr)
+        {
+            // Report a match so operator-locked games keep running
+            Logger.Trace(LogClass.VMGPSystem, "Check network stubbed with success");
+            return 1;
+        }
+
+        [ModuleCall]
         private int vCheckDataCertFile(int handle)
         {
             Logger.Trace(LogClass.VMGPSystem, "Check data cert file stubbed with success");

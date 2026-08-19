@@ -86,6 +86,17 @@ namespace Nofun.Module.VMGP
         }
 
         [ModuleCall]
+        private uint vCreateGrayValue(uint rgb)
+        {
+            uint r = (rgb >> 10) & 0x1F;
+            uint g = (rgb >> 5) & 0x1F;
+            uint b = rgb & 0x1F;
+
+            uint luminance = Math.Min((uint)Math.Round(0.299f * r + 0.587f * g + 0.114f * b), 31);
+            return luminance | (luminance << 5) | (luminance << 10);
+        }
+
+        [ModuleCall]
         private int vFindRGBIndex(uint rgb)
         {
             SColor colorMatch = SColor.FromRgb555(rgb);

@@ -171,6 +171,44 @@ namespace Nofun.Module.VMGP
         }
 
         [ModuleCall]
+        private void vDrawTile(VMPtr<byte> data, int format, short x, short y)
+        {
+            if (data.IsNull)
+            {
+                return;
+            }
+
+            // Bits 0-2 carry the pixel format, bit 3 the transparent flag and
+            // bits 8-15 the palette offset. Tiles are always 8x8 pixels.
+            NativeSprite tileInfo = new NativeSprite()
+            {
+                format = (byte)(format & 0x7),
+                paletteOffset = (byte)((format >> 8) & 0xFF),
+                width = 8,
+                height = 8
+            };
+
+            bool transparent = (format & 0x8) != 0;
+
+            long tileSizeInBits = TextureUtil.GetTextureSizeInBits(tileInfo.width, tileInfo.height,
+                (TextureFormat)tileInfo.format);
+
+            Span<byte> tileData = data.AsSpan(system.Memory, (int)((tileSizeInBits + 7) / 8));
+
+            try
+            {
+                ITexture drawTexture = spriteCache.Retrieve(system.GraphicDriver, tileInfo, tileData,
+                    ScreenPalette, transparent);
+
+                system.GraphicDriver.DrawTexture(x, y, 0, 0, 0, drawTexture);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(LogClass.VMGPGraphic, $"Draw tile failed with error: {ex}");
+            }
+        }
+
+        [ModuleCall]
         private void vDrawObject(short x, short y, VMPtr<NativeSprite> sprite)
         {
             if (sprite.IsNull)

@@ -84,6 +84,94 @@ namespace Nofun.Module.VMGP
             return strstr.Length;
         }
 
+        [ModuleCall]
+        private VMPtr<ushort> vStrCpyU(VMPtr<ushort> dest, VMPtr<ushort> source)
+        {
+            while (true)
+            {
+                ushort sourceChar = source.Read(system.Memory);
+                dest.Write(system.Memory, sourceChar);
+
+                if (sourceChar == 0)
+                {
+                    break;
+                }
+
+                source += 1;
+                dest += 1;
+            }
+
+            return dest;
+        }
+
+        [ModuleCall]
+        private VMPtr<ushort> vStrCatU(VMPtr<ushort> dest, VMPtr<ushort> source)
+        {
+            while (dest.Read(system.Memory) != 0)
+            {
+                dest += 1;
+            }
+
+            return vStrCpyU(dest, source);
+        }
+
+        [ModuleCall]
+        private int vStrCmpU(VMPtr<ushort> lhs, VMPtr<ushort> rhs)
+        {
+            while (true)
+            {
+                ushort lhsChar = lhs.Read(system.Memory);
+                ushort rhsChar = rhs.Read(system.Memory);
+
+                if (lhsChar != rhsChar)
+                {
+                    return lhsChar - rhsChar;
+                }
+
+                if (lhsChar == 0)
+                {
+                    return 0;
+                }
+
+                lhs += 1;
+                rhs += 1;
+            }
+        }
+
+        [ModuleCall]
+        private int vStrLenU(VMPtr<ushort> str)
+        {
+            int length = 0;
+
+            while (str.Read(system.Memory) != 0)
+            {
+                length++;
+                str += 1;
+            }
+
+            return length;
+        }
+
+        [ModuleCall]
+        private VMPtr<ushort> vStrToU(VMPtr<ushort> dest, VMPtr<byte> source)
+        {
+            while (true)
+            {
+                byte sourceChar = source.Read(system.Memory);
+                dest.Write(system.Memory, sourceChar);
+
+                if (sourceChar == 0)
+                {
+                    break;
+                }
+
+                source += 1;
+                dest += 1;
+            }
+
+            return dest;
+        }
+
         private VMPtr<byte> NumberToString(long val, VMPtr<byte> buf, byte len, byte pad)
         {
             string valConverted = val.ToString();

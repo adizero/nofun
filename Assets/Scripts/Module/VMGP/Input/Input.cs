@@ -36,5 +36,14 @@ namespace Nofun.Module.VMGP
         {
             return system.InputDriver.KeyScan;
         }
+
+        [ModuleCall]
+        private uint vGetPointerPos()
+        {
+            // Pointer input is not forwarded to games yet (the input caps do not
+            // advertise ICAPS_POINTER either). Report position (0, 0): vertical
+            // in the high 16 bits, horizontal in the low 16 bits.
+            return 0;
+        }
     }
 }

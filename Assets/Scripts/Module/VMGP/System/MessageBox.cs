@@ -29,6 +29,50 @@ namespace Nofun.Module.VMGP
         [ModuleCall]
         private int vMsgBox(uint flags, VMString message, VMString optionalTitle)
         {
+            string title = null;
+
+            if (BitUtil.FlagSet(flags, MessageBoxFlags.Title))
+            {
+                title = optionalTitle.Get(system.Memory);
+            }
+
+            return ShowMessageBox(flags, message.Get(system.Memory), title);
+        }
+
+        [ModuleCall]
+        private int vMsgBoxU(uint flags, VMPtr<ushort> message, VMPtr<ushort> optionalTitle)
+        {
+            string title = null;
+
+            if (BitUtil.FlagSet(flags, MessageBoxFlags.Title))
+            {
+                title = ReadUnicodeString(optionalTitle);
+            }
+
+            return ShowMessageBox(flags, ReadUnicodeString(message), title);
+        }
+
+        private string ReadUnicodeString(VMPtr<ushort> str)
+        {
+            string result = "";
+
+            while (true)
+            {
+                ushort strChar = str.Read(system.Memory);
+                if (strChar == 0)
+                {
+                    break;
+                }
+
+                result += (char)strChar;
+                str += 1;
+            }
+
+            return result;
+        }
+
+        private int ShowMessageBox(uint flags, string content, string title)
+        {
             Severity boxSeverity;
             switch (true)
             {
@@ -71,14 +115,6 @@ namespace Nofun.Module.VMGP
                     break;
             }
 
-            string title = null;
-
-            if (BitUtil.FlagSet(flags, MessageBoxFlags.Title))
-            {
-                title = optionalTitle.Get(system.Memory);
-            }
-
-            string content = message.Get(system.Memory);
             int buttonValue = 0;
 
             // 0 is already cancel
