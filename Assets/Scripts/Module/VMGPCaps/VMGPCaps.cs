@@ -37,7 +37,11 @@ namespace Nofun.Module.VMGPCaps
             capsAssign.width = (ushort)system.GraphicDriver.ScreenWidth;
             capsAssign.height = (ushort)system.GraphicDriver.ScreenHeight;
             capsAssign.size = (ushort)Marshal.SizeOf<VideoCaps>();
-            capsAssign.flags = (ushort)VideoCapsFlag.All;
+
+            // The low 8 bits of the flags carry the screen output format. Leaving them
+            // at zero means monochrome (Gray2), making games that need color refuse to
+            // start ("this game requires 256 colors or more to run").
+            capsAssign.flags = (ushort)((uint)VideoCapsFlag.All | (uint)VideoScreenFormat.Rgb565);
 
             caps.Write(system.Memory, capsAssign);
 

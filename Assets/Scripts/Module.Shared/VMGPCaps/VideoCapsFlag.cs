@@ -22,4 +22,26 @@ namespace Nofun.Module.VMGPCaps
         ChangingOrientation = 0x2000,
         All = Render3D | ChangingOrientation
     };
+
+    /// <summary>
+    /// Screen output format, reported in the least significant 8 bits of
+    /// the video capability flags. Values match VCAPS_* in vmgpvfmt.h of
+    /// the Mophun SDK.
+    /// </summary>
+    public enum VideoScreenFormat
+    {
+        Gray2 = 0,
+        Gray4 = 1,
+        Gray16 = 2,
+        Indexed2 = 3,
+        Indexed4 = 4,
+        Indexed16 = 5,
+        Indexed256 = 6,
+        Rgb332 = 7,
+        Rgb565 = 8,
+        Rgb555 = 9,
+        Rgb888 = 10,
+        Rgba8888 = 11,
+        Rgb444 = 12
+    };
 }
