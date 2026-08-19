@@ -19,6 +19,7 @@ using Nofun.Util;
 using Nofun.Util.Logging;
 using Nofun.VM;
 using System;
+using System.Collections.Generic;
 using Nofun.Settings;
 using Logger = Nofun.Util.Logging.Logger;
 
@@ -31,6 +32,17 @@ namespace Nofun.Module.VMGP
         private int backgroundColor;
         private uint flipCount;
         private uint currentTransferMode = (uint)TransferMode.Transparent;
+
+        // Pixel format of data games exchange with the screen (vCopyRect).
+        // Must match the video format reported by the VMGPCaps module.
+        private const TextureFormat ScreenPixelFormat = TextureFormat.RGB565;
+
+        // Staging textures for memory-to-screen vCopyRect copies. Entries are
+        // reused across frames, but never twice within one frame: draws are
+        // deferred to the render thread, so overwriting a texture that an
+        // earlier copy this frame still references would corrupt that copy.
+        private readonly List<ITexture> copyRectStagingTextures = new();
+        private int copyRectStagingUsed;
 
         [ModuleCall]
         private void vClearScreen(Int32 color)
@@ -99,6 +111,7 @@ namespace Nofun.Module.VMGP
             // This should always block
             system.GraphicDriver.FlipScreen();
             flipCount++;
+            copyRectStagingUsed = 0;
         }
 
         [ModuleCall]
@@ -180,19 +193,92 @@ namespace Nofun.Module.VMGP
         [ModuleCall]
         private void vPlot(short x, short y)
         {
-
+            system.GraphicDriver.FillRect(x, y, x + 1, y + 1, GetColor(foregroundColor));
         }
 
         [ModuleCall]
         private ushort vGetPixel(short x, short y)
         {
-            return 0;
+            return (ushort)system.GraphicDriver.GetScreenPixel(x, y).ToRgb555();
+        }
+
+        private void DrawCopyRectPixels(byte[] pixels, int x, int y, ushort width, ushort height)
+        {
+            ITexture staging = null;
+
+            if (copyRectStagingUsed < copyRectStagingTextures.Count)
+            {
+                staging = copyRectStagingTextures[copyRectStagingUsed];
+                if ((staging.Width != width) || (staging.Height != height))
+                {
+                    staging = null;
+                }
+            }
+
+            if (staging == null)
+            {
+                staging = system.GraphicDriver.CreateTexture(pixels, width, height, 1, ScreenPixelFormat);
+
+                if (copyRectStagingUsed < copyRectStagingTextures.Count)
+                {
+                    copyRectStagingTextures[copyRectStagingUsed] = staging;
+                }
+                else
+                {
+                    copyRectStagingTextures.Add(staging);
+                }
+            }
+            else
+            {
+                staging.SetData(pixels, 0);
+                staging.Apply();
+            }
+
+            copyRectStagingUsed++;
+
+            system.GraphicDriver.DrawTexture(x, y, 0, 0, 0, staging);
         }
 
         [ModuleCall]
-        private void vCopyRect()
+        private void vCopyRect(VMPtr<NativeStridePtr> destPtr, VMPtr<NativeStridePtr> sourcePtr, ushort width, ushort height)
         {
+            if (destPtr.IsNull || sourcePtr.IsNull || (width == 0) || (height == 0))
+            {
+                return;
+            }
 
+            NativeStridePtr dest = destPtr.Read(system.Memory);
+            NativeStridePtr source = sourcePtr.Read(system.Memory);
+
+            if (source.ptr.IsNull)
+            {
+                Logger.Warning(LogClass.VMGPGraphic, "vCopyRect with the screen as source is not implemented, skipping!");
+                return;
+            }
+
+            int bytesPerPixel = (TextureUtil.GetPixelSizeInBits(ScreenPixelFormat) + 7) / 8;
+            int rowBytes = width * bytesPerPixel;
+
+            byte[] pixels = new byte[rowBytes * height];
+
+            for (int row = 0; row < height; row++)
+            {
+                int offset = source.xpan + (source.ypan + row) * source.stride;
+                source.ptr[offset].AsSpan(system.Memory, rowBytes).CopyTo(pixels.AsSpan(row * rowBytes, rowBytes));
+            }
+
+            if (dest.ptr.IsNull)
+            {
+                DrawCopyRectPixels(pixels, dest.xpan / bytesPerPixel, dest.ypan, width, height);
+            }
+            else
+            {
+                for (int row = 0; row < height; row++)
+                {
+                    int offset = dest.xpan + (dest.ypan + row) * dest.stride;
+                    pixels.AsSpan(row * rowBytes, rowBytes).CopyTo(dest.ptr[offset].AsSpan(system.Memory, rowBytes));
+                }
+            }
         }
     }
 }

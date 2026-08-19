@@ -51,6 +51,12 @@ namespace Nofun.Driver.Graphics
             int sourceX = -1, int sourceY = -1, int width = -1, int height = -1, bool blackAsTransparent = false,
             bool flipX = false, bool flipY = false);
         void FillRect(int x0, int y0, int x1, int y1, SColor color);
+
+        /// <summary>
+        /// Read back a single pixel from the emulated screen. This flushes and
+        /// renders all pending draws, so it is expensive - avoid calling it in bulk.
+        /// </summary>
+        SColor GetScreenPixel(int x, int y);
         #endregion
 
         #region 3D draw

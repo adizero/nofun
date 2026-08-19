@@ -893,6 +893,51 @@ namespace Nofun.Driver.Unity.Graphics
             DrawTexture(whiteTexture, destRect, sourceRect, 0, 0, 0, color, false);
         }
 
+        public SColor GetScreenPixel(int x, int y)
+        {
+            FlushBatch();
+
+            SColor result = new SColor(0, 0, 0);
+            System.Threading.ManualResetEvent readDone = new System.Threading.ManualResetEvent(false);
+
+            // Go through the postponed queue so the readback stays ordered after
+            // all draw commands queued so far, then render them before reading.
+            JobScheduler.Instance.PostponeToUnityThread(() =>
+            {
+                try
+                {
+                    if (began)
+                    {
+                        mophunCamera.Render();
+                        began = false;
+                    }
+
+                    RenderTexture previousActive = RenderTexture.active;
+                    RenderTexture.active = screenTextureBackBuffer;
+
+                    Texture2D pixelReader = new Texture2D(1, 1, UnityEngine.TextureFormat.RGBA32, false);
+
+                    // The back buffer is Y-up while Mophun coordinates are Y-down
+                    pixelReader.ReadPixels(new Rect(x, screenTextureBackBuffer.height - 1 - y, 1, 1), 0, 0, false);
+
+                    Color pixel = pixelReader.GetPixel(0, 0);
+                    result = new SColor(pixel.r, pixel.g, pixel.b, pixel.a);
+
+                    RenderTexture.active = previousActive;
+                    Destroy(pixelReader);
+                }
+                finally
+                {
+                    readDone.Set();
+                }
+            });
+
+            JobScheduler.Instance.FlushPostponed();
+            readDone.WaitOne();
+
+            return result;
+        }
+
         #endregion
 
         public void FlipScreen()
