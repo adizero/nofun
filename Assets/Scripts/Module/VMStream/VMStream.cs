@@ -65,6 +65,19 @@ namespace Nofun.Module.VMStream
         }
 
         [ModuleCall]
+        private ushort htons(ushort value)
+        {
+            // The VM is little-endian, network order is big-endian
+            return (ushort)((value >> 8) | (value << 8));
+        }
+
+        [ModuleCall]
+        private uint htonl(uint value)
+        {
+            return (value >> 24) | ((value >> 8) & 0xFF00) | ((value << 8) & 0xFF0000) | (value << 24);
+        }
+
+        [ModuleCall]
         private int vStreamOpen(VMString fileName, uint mode)
         {
             IVMHostStream targetedStream;

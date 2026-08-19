@@ -34,6 +34,14 @@ namespace Nofun.Module.VMGP
         }
 
         [ModuleCall]
+        private uint vMaxFreeBlock()
+        {
+            // The allocator does not track individual free block sizes, the
+            // total free amount is the closest available approximation.
+            return (uint)heapAllocator.AmountFree;
+        }
+
+        [ModuleCall]
         private VMPtr<Any> vNewPtr(uint size)
         {
             long offset = heapAllocator.Allocate(size);

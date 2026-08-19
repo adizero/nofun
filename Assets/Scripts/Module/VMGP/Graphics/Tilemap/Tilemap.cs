@@ -48,12 +48,14 @@ namespace Nofun.Module.VMGP
 
         private bool IsTilemapFormatSupported(TextureFormat format)
         {
-            return (format >= TextureFormat.Palette2) && (format <= TextureFormat.RGB332);
+            return ((format >= TextureFormat.Palette2) && (format <= TextureFormat.RGB332)) ||
+                (format == TextureFormat.RGB565) || (format == TextureFormat.RGB888) ||
+                (format == TextureFormat.ARGB8888) || (format == TextureFormat.ARGB4444);
         }
 
         private bool IsTilemapFormatCurrentlyImplemented(TextureFormat format)
         {
-            return (format >= TextureFormat.Palette2) && (format <= TextureFormat.RGB332);
+            return IsTilemapFormatSupported(format);
         }
 
         private void RefreshMapAtlasValidStatus(bool setStaus = false)
@@ -95,7 +97,8 @@ namespace Nofun.Module.VMGP
 
             if (!IsTilemapFormatCurrentlyImplemented(format))
             {
-                throw new UnimplementedFeatureException($"Unimplemented tilemap format {format}");
+                Logger.Error(LogClass.VMGPGraphic, $"Unimplemented tilemap format {format}, the map will not be drawn!");
+                return 0;
             }
 
             // Each tile index is 1 byte, attribute (if have is 1 byte)

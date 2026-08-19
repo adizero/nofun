@@ -18,6 +18,7 @@ using Nofun.Util.Logging;
 using Nofun.Util.Allocator;
 using Nofun.Settings;
 using Nofun.VM;
+using System;
 
 namespace Nofun.Module.VMGP
 {
@@ -46,15 +47,44 @@ namespace Nofun.Module.VMGP
         }
 
         [ModuleCall]
-        private void DbgPrintf(VMString message)
+        private void DbgPrintf(VMString format)
         {
-            // TODO: A mechanism to handle printf arguments
-            Logger.Debug(LogClass.GameTTY, message.Get(system.Memory));
+            // The single named argument takes up 4 bytes, varargs follow
+            int argOffset = 4;
+            Logger.Debug(LogClass.GameTTY, FormatString(format.Get(system.Memory), () => ReadVarArg(ref argOffset)));
         }
 
         [ModuleCall]
-        private void vSprintf(VMPtr<byte> buf, VMString message)
+        private void vYieldToSystem()
         {
+        }
+
+        [ModuleCall]
+        private ushort vSwap16(ushort value)
+        {
+            return (ushort)((value >> 8) | (value << 8));
+        }
+
+        [ModuleCall]
+        private uint vSwap32(uint value)
+        {
+            return (value >> 24) | ((value >> 8) & 0xFF00) | ((value << 8) & 0xFF0000) | (value << 24);
+        }
+
+        [ModuleCall]
+        private void vSwap(VMPtr<byte> ptr, uint count, uint size)
+        {
+            if ((size != 2) && (size != 4))
+            {
+                return;
+            }
+
+            Span<byte> data = ptr.AsSpan(system.Memory, (int)(count * size));
+
+            for (int i = 0; i < count; i++)
+            {
+                data.Slice(i * (int)size, (int)size).Reverse();
+            }
         }
 
         [ModuleCall]

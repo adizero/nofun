@@ -44,6 +44,40 @@ namespace Nofun.Module.VMGP
         }
 
         [ModuleCall]
+        private VMPtr<byte> vStrCat(VMPtr<byte> dest, VMPtr<byte> source)
+        {
+            while (dest.Read(system.Memory) != 0)
+            {
+                dest += 1;
+            }
+
+            return vStrCpy(dest, source);
+        }
+
+        [ModuleCall]
+        private int vStrCmp(VMPtr<byte> lhs, VMPtr<byte> rhs)
+        {
+            while (true)
+            {
+                byte lhsByte = lhs.Read(system.Memory);
+                byte rhsByte = rhs.Read(system.Memory);
+
+                if (lhsByte != rhsByte)
+                {
+                    return lhsByte - rhsByte;
+                }
+
+                if (lhsByte == 0)
+                {
+                    return 0;
+                }
+
+                lhs += 1;
+                rhs += 1;
+            }
+        }
+
+        [ModuleCall]
         private int vStrLen(VMString str)
         {
             var strstr = str.Get(system.Memory);

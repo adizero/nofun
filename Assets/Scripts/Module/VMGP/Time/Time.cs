@@ -29,6 +29,12 @@ namespace Nofun.Module.VMGP
         }
 
         [ModuleCall]
+        private uint vGetTime()
+        {
+            return (uint)System.DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        }
+
+        [ModuleCall]
         private void vGetTimeDate(VMPtr<VMDateTime> dateTime)
         {
             var result = system.TimeDriver.GetDateTimeDetail(false);

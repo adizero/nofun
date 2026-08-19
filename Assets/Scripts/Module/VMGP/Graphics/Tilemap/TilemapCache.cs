@@ -47,7 +47,9 @@ namespace Nofun.Module.VMGP
         private bool IsTilemapDataSupported(TextureFormat format)
         {
             return (format == TextureFormat.RGB332) || (format == TextureFormat.Palette256) || (format == TextureFormat.Palette16) ||
-                (format == TextureFormat.Palette4) || (format == TextureFormat.Palette2);
+                (format == TextureFormat.Palette4) || (format == TextureFormat.Palette2) ||
+                (format == TextureFormat.RGB565) || (format == TextureFormat.RGB888) ||
+                (format == TextureFormat.ARGB8888) || (format == TextureFormat.ARGB4444);
         }
 
         public static void GetTilePositionInAtlas(int tileIndex, out int x, out int y)
@@ -79,7 +81,7 @@ namespace Nofun.Module.VMGP
             // Try to make a hash of the tilemap and look it up
             if (!IsTilemapDataSupported(tileMapFormat))
             {
-                throw new UnimplementedFeatureException("Tilemap other than RGB332 is not yet implemented!");
+                throw new UnimplementedFeatureException($"Tilemap format {tileMapFormat} is not supported!");
             }
 
             TilemapCacheEntry entry = GetFromCache(tileSpriteDataAddr);
@@ -98,13 +100,13 @@ namespace Nofun.Module.VMGP
             ITexture resultTexture = entry?.texture;
 
             int bitsPP = TextureUtil.GetPixelSizeInBits(tileMapFormat);
-            byte[] dataUpload = new byte[256 * 8 * 8 / (8 / bitsPP)];
 
             // Byte-streamable, copy by byte-row
             // Tile should be in 8x8 dimension. This is hardcoded
             // Divide the tile into rows
             // Each row can only contain 32 tile (= 32x8 = 256 pixels)
-            int lineWidthOneTile = (8 / (8 / bitsPP));
+            int lineWidthOneTile = (8 * bitsPP + 7) / 8;
+            byte[] dataUpload = new byte[256 * 8 * lineWidthOneTile];
             int oneTileSize = lineWidthOneTile * 8;
 
             for (int i = 0; i < tileMaxCount; i++)

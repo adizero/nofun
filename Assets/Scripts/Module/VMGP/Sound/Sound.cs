@@ -27,6 +27,14 @@ namespace Nofun.Module.VMGP
         private ISound currentSound;
 
         [ModuleCall]
+        private void vBeep(uint frequency, uint durationInMs)
+        {
+            // No tone generator in the audio driver yet. Games mostly use this
+            // for feedback blips, so ignoring it is preferable to crashing.
+            Logger.Trace(LogClass.VMGPSound, $"Beep stubbed (frequency={frequency}, duration={durationInMs}ms)");
+        }
+
+        [ModuleCall]
         private int vPlayResource(VMPtr<byte> data, uint length, uint flags)
         {
             if ((flags & (uint)SoundFlag.Stop) != 0)
