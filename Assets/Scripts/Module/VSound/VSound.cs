@@ -15,6 +15,7 @@
  */
 
 using Nofun.Driver.Audio;
+using Nofun.Module.VMStream;
 using Nofun.Util.Logging;
 using Nofun.VM;
 using System;
@@ -27,6 +28,13 @@ namespace Nofun.Module.VSound
     {
         private const int SND_OK = 0;
         private const int SND_ERR = -1;
+
+        private const int SNDLOAD_STREAM = 0;
+        private const int SNDLOAD_RESOURCE = 1;
+        private const int SNDLOAD_FILE = 2;
+
+        private readonly System.Collections.Generic.HashSet<int> soundEffects = new();
+        private int nextSoundEffectId = 1;
 
         private const int SND_MAXVOLUME = 127;
         private const int SND_MINVOLUME = 0;
@@ -70,6 +78,116 @@ namespace Nofun.Module.VSound
                 Logger.Error(LogClass.VMGPSound, $"Error while creating PCM sound object: {ex}");
                 return SND_ERR;
             }
+        }
+
+        [ModuleCall]
+        private int vSoundLoad(int handle, int flags)
+        {
+            IVMHostStream stream = null;
+            bool ownsStream = false;
+
+            try
+            {
+                switch (flags)
+                {
+                    case SNDLOAD_STREAM:
+                        stream = system.VMStreamModule.GetStream(handle);
+                        break;
+
+                    case SNDLOAD_RESOURCE:
+                        stream = system.VMStreamModule.Open("",
+                            (uint)StreamFlags.Read | (uint)StreamType.Resource | (uint)(handle << 16));
+                        ownsStream = true;
+                        break;
+
+                    case SNDLOAD_FILE:
+                        stream = system.VMStreamModule.Open(new VMString((uint)handle).Get(system.Memory),
+                            (uint)StreamFlags.Read | (uint)StreamType.File);
+                        ownsStream = true;
+                        break;
+
+                    default:
+                        Logger.Error(LogClass.VMGPSound, $"Unknown sound load flags: {flags}");
+                        return SND_ERR;
+                }
+
+                if (stream == null)
+                {
+                    return SND_ERR;
+                }
+
+                int headerSize = Marshal.SizeOf<NativeSoundHeader>();
+                byte[] headerBytes = new byte[headerSize];
+
+                if (stream.Read(headerBytes, null) != headerSize)
+                {
+                    return SND_ERR;
+                }
+
+                NativeSoundHeader header = MemoryMarshal.Cast<byte, NativeSoundHeader>(headerBytes)[0];
+
+                byte[] body = new byte[header.bodySize];
+                if (stream.Read(body, null) != body.Length)
+                {
+                    return SND_ERR;
+                }
+
+                IPcmSound soundFromDriver = system.AudioDriver.LoadPCMSound(body, header.priority,
+                    (int)header.frequency, header.channelCount, header.bitsPerSample,
+                    header.format == (uint)NativeVSndFormat.ADPCM);
+
+                return soundManager.Add(soundFromDriver);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(LogClass.VMGPSound, $"Error while loading sound: {ex}");
+                return SND_ERR;
+            }
+            finally
+            {
+                if (ownsStream && (stream != null))
+                {
+                    stream.OnClose();
+                }
+            }
+        }
+
+        [ModuleCall]
+        private int vSoundUpload(int handle)
+        {
+            // Sounds are fully loaded host-side already, there is no dedicated
+            // hardware sound memory to upload to.
+            return (soundManager.Get(handle) != null) ? SND_OK : SND_ERR;
+        }
+
+        [ModuleCall]
+        private int vSoundCreateEffect(VMPtr<Any> effects, int count)
+        {
+            // DSP effects are not audible in the emulator. Track the ids so
+            // the rest of the effect API stays consistent for the game.
+            int id = nextSoundEffectId++;
+            soundEffects.Add(id);
+
+            Logger.Trace(LogClass.VMGPSound, $"Sound effect {id} created (effects are not audible)");
+            return id;
+        }
+
+        [ModuleCall]
+        private int vSoundModifyEffect(VMPtr<Any> effects, int id, int index, int count)
+        {
+            return soundEffects.Contains(id) ? SND_OK : SND_ERR;
+        }
+
+        [ModuleCall]
+        private int vSoundDestroyEffect(int id)
+        {
+            return soundEffects.Remove(id) ? SND_OK : SND_ERR;
+        }
+
+        [ModuleCall]
+        private int vSoundSetEffect(int handle, int id)
+        {
+            return ((soundManager.Get(handle) != null) && soundEffects.Contains(id)) ? SND_OK : SND_ERR;
         }
 
         [ModuleCall]
