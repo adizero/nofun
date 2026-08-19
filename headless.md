@@ -1,7 +1,15 @@
 ## How to build nofun apk on a headless Linux server
 For example on Ubuntu 22.04:
+
+When installing on Debian 13 and port 80 is forbidden by firewalls, switch to https mirrors in `/etc/apt/sources.list`:
+```
+sudo sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list
+```
+
 - install Unity Hub (non-snap version)
 ```bash
+curl -fsSL https://hub.unity3d.com/linux/keys/public | gpg --dearmor | sudo tee /usr/share/keyrings/Unity_Technologies_ApS.gpg > /dev/null
+
 sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/Unity_Technologies_ApS.gpg] https://hub.unity3d.com/linux/repos/deb stable main" > /etc/apt/sources.list.d/unityhub.list'
 sudo apt update
 sudo apt install unityhub
