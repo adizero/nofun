@@ -193,12 +193,21 @@ namespace Nofun.Module.VMGP
 
             try
             {
+                bool transparent = BitUtil.FlagSet(currentTransferMode, TransferMode.Transparent);
+
                 ITexture drawTexture = spriteCache.Retrieve(system.GraphicDriver, spriteInfo, spriteData,
-                    ScreenPalette, BitUtil.FlagSet(currentTransferMode, TransferMode.Transparent));
+                    ScreenPalette, transparent);
+
+                // Palette and RGB332 sprites get color 0 knocked out during conversion.
+                // Direct-color formats without alpha are uploaded as-is, so transparency
+                // (color 0 = black) has to be handled at draw time instead.
+                TextureFormat format = (TextureFormat)spriteInfo.format;
+                bool colorKeyedAtDraw = transparent &&
+                    ((format == TextureFormat.RGB565) || (format == TextureFormat.RGB888));
 
                 // Draw it to the screen
                 system.GraphicDriver.DrawTexture(x, y, spriteInfo.centerX, spriteInfo.centerY,
-                    0, drawTexture, blackAsTransparent: false,
+                    0, drawTexture, blackAsTransparent: colorKeyedAtDraw,
                     flipX: BitUtil.FlagSet(currentTransferMode, TransferMode.FlipX),
                     flipY: BitUtil.FlagSet(currentTransferMode, TransferMode.FlipY));
             }

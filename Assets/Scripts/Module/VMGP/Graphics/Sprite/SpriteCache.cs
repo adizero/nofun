@@ -38,7 +38,11 @@ namespace Nofun.Module.VMGP
 
         private bool IsSpriteFormatSupported(TextureFormat format)
         {
-            return (format >= TextureFormat.Palette2) && (format <= TextureFormat.RGB332);
+            // Palette and RGB332 sprites are converted on the CPU, the direct-color
+            // formats below are uploaded to the GPU as-is.
+            return ((format >= TextureFormat.Palette2) && (format <= TextureFormat.RGB332)) ||
+                (format == TextureFormat.RGB565) || (format == TextureFormat.RGB888) ||
+                (format == TextureFormat.ARGB8888) || (format == TextureFormat.ARGB4444);
         }
 
         public ITexture Retrieve(IGraphicDriver driver, NativeSprite spriteInfo, Span<byte> spriteData, SColor[] palettes, bool color0Transparent)
@@ -47,7 +51,7 @@ namespace Nofun.Module.VMGP
 
             if (!IsSpriteFormatSupported(format))
             {
-                throw new UnimplementedFeatureException("Sprite other than Palette and RGB332 is not supported!");
+                throw new UnimplementedFeatureException($"Sprite format {format} is not supported!");
             }
 
             bool isPalette = (format >= TextureFormat.Palette2) && (format <= TextureFormat.Palette256);
