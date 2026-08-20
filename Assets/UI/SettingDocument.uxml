@@ -15,7 +15,8 @@
                         <UnityEngine.Localization.LocalizedString property="label" entry="Id(100390619566080)" table="GUID:198be8f0d9d907049947f8336106f789" />
                     </Bindings>
                 </ui:DropdownField>
-                <ui:DropdownField index="0" choices="Keypad (4x3),A/B buttons" label="Control layout" name="ControlLayoutCombo" />
+                <ui:DropdownField index="0" choices="D-pad,Diagonal D-pad,A/B buttons,Keypad (4x3)" label="Left controls" name="LeftControlCombo" />
+                <ui:DropdownField index="3" choices="D-pad,Diagonal D-pad,A/B buttons,Keypad (4x3)" label="Right controls" name="RightControlCombo" />
                 <ui:Instance template="Vector2Input" name="ScreenSize">
                     <AttributeOverrides element-name="XNumberInput" text="101" />
                     <AttributeOverrides element-name="YNumberInput" text="80" />

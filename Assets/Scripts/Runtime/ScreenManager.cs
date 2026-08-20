@@ -47,28 +47,63 @@ namespace Nofun
 
         private Settings.ScreenOrientation screenOrientation;
 
-        private class ControlSet
+        private class ControlSide
         {
-            public GameObject keypad;
-            public GameObject fire1;
-            public GameObject fire2;
+            public RectTransform half;
+            public GameObject original;
+            public Settings.ControlPadType originalType;
+            public Vector2 areaCenter;
+            public Dictionary<Settings.ControlPadType, GameObject> built = new();
         }
 
-        private readonly List<ControlSet> controlSets = new();
-        private Settings.ControlLayout controlLayout = Settings.ControlLayout.Keypad;
+        private class PadAssets
+        {
+            public Sprite up;
+            public Sprite down;
+            public Sprite left;
+            public Sprite right;
+            public Sprite fire1;
+            public Sprite fire2;
+            public Color directionColor = Color.white;
+            public Color fireColor = Color.white;
+        }
+
+        private struct OverlayPlacement
+        {
+            public Vector2 anchorMin;
+            public Vector2 anchorMax;
+            public Vector2 pivot;
+            public Vector2 anchoredPosition;
+        }
+
+        private class ControlRootInfo
+        {
+            public bool isLandscape;
+            public float padBaseWidth;
+            public ControlSide left;
+            public ControlSide right;
+            public RectTransform twoSides;
+            public RectTransform menuButton;
+            public RectTransform settingButton;
+            public OverlayPlacement menuOriginal;
+            public OverlayPlacement settingOriginal;
+            public PadAssets assets;
+            public InputDriver inputDriver;
+        }
+
+        private readonly List<ControlRootInfo> controlRoots = new();
+        private Settings.ControlPadType leftControlPad = Settings.ControlPadType.DPad;
+        private Settings.ControlPadType rightControlPad = Settings.ControlPadType.Keypad;
 
         /// <summary>
-        /// The on-screen control layout to use: the 4x3 keypad or the
-        /// original A/B (fire) buttons.
+        /// Select which control pad to show on each side of the screen.
         /// </summary>
-        public Settings.ControlLayout ControlLayout
+        public void SetControlLayouts(Settings.ControlPadType left, Settings.ControlPadType right)
         {
-            get => controlLayout;
-            set
-            {
-                controlLayout = value;
-                ApplyControlLayout();
-            }
+            leftControlPad = left;
+            rightControlPad = right;
+
+            ApplyControlLayouts();
         }
 
         public event System.Action<Settings.ScreenOrientation> ScreenOrientationChanged;
@@ -202,13 +237,13 @@ namespace Nofun
             }
             else
             {
-                StartCoroutine(SetupTouchKeypads());
+                StartCoroutine(SetupTouchControls());
             }
 
             UpdateCanvasOrientation();
         }
 
-        private IEnumerator SetupTouchKeypads()
+        private IEnumerator SetupTouchControls()
         {
             // Wait a bit so RectTransforms have their final sizes.
             for (var i = 0; i < 2; i++)
@@ -222,36 +257,13 @@ namespace Nofun
                 yield break;
             }
 
-            EnsureKeypad(controlMobilePotrait, inputDriver, isLandscape: false);
-            EnsureKeypad(controlMobileLandscape, inputDriver, isLandscape: true);
+            SetupControlRoot(controlMobilePotrait, inputDriver, isLandscape: false);
+            SetupControlRoot(controlMobileLandscape, inputDriver, isLandscape: true);
 
-            ApplyControlLayout();
+            ApplyControlLayouts();
         }
 
-        private void ApplyControlLayout()
-        {
-            bool useKeypad = (controlLayout == Settings.ControlLayout.Keypad);
-
-            foreach (var controlSet in controlSets)
-            {
-                if (controlSet.keypad != null)
-                {
-                    controlSet.keypad.SetActive(useKeypad);
-                }
-
-                if (controlSet.fire1 != null)
-                {
-                    controlSet.fire1.SetActive(!useKeypad);
-                }
-
-                if (controlSet.fire2 != null)
-                {
-                    controlSet.fire2.SetActive(!useKeypad);
-                }
-            }
-        }
-
-        private void EnsureKeypad(GameObject controlRoot, InputDriver inputDriver, bool isLandscape)
+        private void SetupControlRoot(GameObject controlRoot, InputDriver inputDriver, bool isLandscape)
         {
             if (controlRoot == null)
             {
@@ -264,116 +276,490 @@ namespace Nofun
                 return;
             }
 
-            if (mobileRoot.Find("Keypad") != null)
-            {
-                return;
-            }
-
             var twoSides = FindDescendant(mobileRoot, "TwoSides") as RectTransform;
-            if (twoSides == null)
+            var halfLeft = FindDescendant(mobileRoot, "HalfLeft") as RectTransform;
+            var halfRight = FindDescendant(mobileRoot, "HalfRight") as RectTransform;
+
+            if ((twoSides == null) || (halfLeft == null) || (halfRight == null))
             {
                 return;
             }
 
-            var fire1 = FindDescendant(mobileRoot, "Fire1") as RectTransform;
-            var fire2 = FindDescendant(mobileRoot, "Fire2") as RectTransform;
+            var dpad = FindDescendant(halfLeft, "Dpad") as RectTransform;
+            var fires = FindDescendant(halfRight, "Normal") as RectTransform;
 
-            // Base keypad size on the existing control block width.
-            var keypadWidth = Mathf.Clamp(twoSides.rect.width * 0.45f, 300f, 700f);
-            var keypadHeight = keypadWidth * 4f / 3f;
+            var info = new ControlRootInfo()
+            {
+                isLandscape = isLandscape,
+                padBaseWidth = Mathf.Clamp(twoSides.rect.width * 0.45f, 300f, 700f),
+                twoSides = twoSides,
+                inputDriver = inputDriver,
+                assets = CollectPadAssets(dpad, fires),
+                left = new ControlSide()
+                {
+                    half = halfLeft,
+                    original = (dpad != null) ? dpad.gameObject : null,
+                    originalType = Settings.ControlPadType.DPad,
+                    areaCenter = GetContentCenter(halfLeft, dpad)
+                },
+                right = new ControlSide()
+                {
+                    half = halfRight,
+                    original = (fires != null) ? fires.gameObject : null,
+                    originalType = Settings.ControlPadType.ABButtons,
+                    areaCenter = GetContentCenter(halfRight, fires)
+                }
+            };
+
+            // The burger (menu) and gear (setting) buttons live under the
+            // canvas-level "Absolute" overlay of the same canvas
+            Canvas canvas = controlRoot.GetComponentInParent<Canvas>(true);
+            if (canvas != null)
+            {
+                var absolute = canvas.transform.Find("Absolute");
+                if (absolute != null)
+                {
+                    info.menuButton = absolute.Find("Menu") as RectTransform;
+                    info.settingButton = absolute.Find("Setting") as RectTransform;
+
+                    info.menuOriginal = CapturePlacement(info.menuButton);
+                    info.settingOriginal = CapturePlacement(info.settingButton);
+                }
+            }
+
+            controlRoots.Add(info);
+        }
+
+        private static PadAssets CollectPadAssets(RectTransform dpad, RectTransform fires)
+        {
+            var assets = new PadAssets();
+
+            assets.up = SpriteOf(dpad, "Up", out Color directionColor);
+            assets.down = SpriteOf(dpad, "Down", out _);
+            assets.left = SpriteOf(dpad, "Left", out _);
+            assets.right = SpriteOf(dpad, "Right", out _);
+            assets.fire1 = SpriteOf(fires, "Fire1", out Color fireColor);
+            assets.fire2 = SpriteOf(fires, "Fire2", out _);
+
+            if (assets.up != null)
+            {
+                assets.directionColor = directionColor;
+            }
+
+            if (assets.fire1 != null)
+            {
+                assets.fireColor = fireColor;
+            }
+
+            return assets;
+        }
+
+        private static Sprite SpriteOf(RectTransform root, string name, out Color color)
+        {
+            color = Color.white;
+
+            var target = (root != null) ? FindDescendant(root, name) : null;
+            var image = (target != null) ? target.GetComponent<UnityEngine.UI.Image>() : null;
+
+            if (image == null)
+            {
+                return null;
+            }
+
+            color = image.color;
+            return image.sprite;
+        }
+
+        private static Vector2 GetContentCenter(RectTransform half, RectTransform content)
+        {
+            if (content == null)
+            {
+                return Vector2.zero;
+            }
+
+            Bounds bounds = GetBoundsInParentSpace(half, content);
+
+            foreach (Transform child in content)
+            {
+                if (child is RectTransform childRect)
+                {
+                    bounds = Encapsulate(bounds, GetBoundsInParentSpace(half, childRect));
+                }
+            }
+
+            return bounds.center;
+        }
+
+        private static OverlayPlacement CapturePlacement(RectTransform target)
+        {
+            if (target == null)
+            {
+                return default;
+            }
+
+            return new OverlayPlacement()
+            {
+                anchorMin = target.anchorMin,
+                anchorMax = target.anchorMax,
+                pivot = target.pivot,
+                anchoredPosition = target.anchoredPosition
+            };
+        }
+
+        private static void RestorePlacement(RectTransform target, OverlayPlacement placement)
+        {
+            target.anchorMin = placement.anchorMin;
+            target.anchorMax = placement.anchorMax;
+            target.pivot = placement.pivot;
+            target.anchoredPosition = placement.anchoredPosition;
+        }
+
+        private void ApplyControlLayouts()
+        {
+            foreach (var info in controlRoots)
+            {
+                ApplySide(info, info.left, leftControlPad);
+                ApplySide(info, info.right, rightControlPad);
+
+                PlaceOverlayButtons(info);
+            }
+        }
+
+        private void ApplySide(ControlRootInfo info, ControlSide side, Settings.ControlPadType wanted)
+        {
+            bool useOriginal = (wanted == side.originalType) && (side.original != null);
+
+            if (side.original != null)
+            {
+                side.original.SetActive(useOriginal);
+            }
+
+            if (!useOriginal && !side.built.ContainsKey(wanted))
+            {
+                side.built[wanted] = BuildPad(info, side, wanted);
+            }
+
+            foreach (var pad in side.built)
+            {
+                if (pad.Value != null)
+                {
+                    pad.Value.SetActive(!useOriginal && (pad.Key == wanted));
+                }
+            }
+        }
+
+        private GameObject BuildPad(ControlRootInfo info, ControlSide side, Settings.ControlPadType type)
+        {
+            float width;
+            float height;
+
+            switch (type)
+            {
+                case Settings.ControlPadType.Keypad:
+                    width = info.padBaseWidth;
+                    height = width * 4f / 3f;
+                    break;
+
+                case Settings.ControlPadType.ABButtons:
+                    width = info.padBaseWidth * 0.9f;
+                    height = width * 0.45f;
+                    break;
+
+                default:
+                    width = info.padBaseWidth * 0.95f;
+                    height = width;
+                    break;
+            }
+
+            // Keep the pad inside its half of the control area
+            float scale = Mathf.Min(1f, Mathf.Min(side.half.rect.width / width, side.half.rect.height / height));
+            width *= scale;
+            height *= scale;
+
+            var padGo = new GameObject($"Pad{type}", typeof(RectTransform));
+            padGo.transform.SetParent(side.half, false);
+            padGo.transform.SetAsLastSibling();
+
+            var padRect = padGo.GetComponent<RectTransform>();
+            padRect.anchorMin = new Vector2(0.5f, 0.5f);
+            padRect.anchorMax = new Vector2(0.5f, 0.5f);
+            padRect.pivot = new Vector2(0.5f, 0.5f);
+            padRect.sizeDelta = new Vector2(width, height);
+            padRect.anchoredPosition = ClampIntoRect(side.half.rect, side.areaCenter, width, height);
+
+            switch (type)
+            {
+                case Settings.ControlPadType.Keypad:
+                    BuildKeypadContent(padGo, info);
+                    break;
+
+                case Settings.ControlPadType.ABButtons:
+                    BuildABContent(padGo, info);
+                    break;
+
+                default:
+                    BuildDPadContent(padGo, info, includeDiagonals: (type == Settings.ControlPadType.DiagonalDPad));
+                    break;
+            }
+
+            return padGo;
+        }
+
+        private static Vector2 ClampIntoRect(Rect area, Vector2 center, float width, float height)
+        {
+            float minX = area.xMin + (width * 0.5f);
+            float maxX = area.xMax - (width * 0.5f);
+            float minY = area.yMin + (height * 0.5f);
+            float maxY = area.yMax - (height * 0.5f);
+
+            float x = (minX > maxX) ? area.center.x : Mathf.Clamp(center.x, minX, maxX);
+            float y = (minY > maxY) ? area.center.y : Mathf.Clamp(center.y, minY, maxY);
+
+            return new Vector2(x, y);
+        }
+
+        private void BuildKeypadContent(GameObject padGo, ControlRootInfo info)
+        {
+            var padRect = padGo.GetComponent<RectTransform>();
+
             const float spacing = 10f;
-            const float margin = 25f;
+            var cellWidth = (padRect.sizeDelta.x - (spacing * 2f)) / 3f;
+            var cellHeight = (padRect.sizeDelta.y - (spacing * 3f)) / 4f;
 
-            var cellWidth = (keypadWidth - (spacing * 2f)) / 3f;
-            var cellHeight = (keypadHeight - (spacing * 3f)) / 4f;
-
-            // Default placement (fallback): centered above the existing controls.
-            var keypadParent = mobileRoot;
-            var keypadAnchorMin = new Vector2(0.5f, 0.5f);
-            var keypadAnchorMax = new Vector2(0.5f, 0.5f);
-            var keypadPivot = new Vector2(0.5f, 0.5f);
-            var keypadAnchoredPosition = new Vector2(0f, GetTopInParentSpace(mobileRoot, twoSides) + (keypadHeight * 0.5f) + margin);
-            var usedFireButtonsPlacement = false;
-
-            // Preferred placement: replace the existing Fire1/Fire2 (A/B) buttons.
-            if (fire1 != null && fire2 != null && fire1.parent is RectTransform fireParent)
-            {
-                // Hide the old A/B buttons.
-                fire1.gameObject.SetActive(false);
-                fire2.gameObject.SetActive(false);
-
-                keypadParent = fireParent;
-                keypadAnchorMin = fire1.anchorMin;
-                keypadAnchorMax = fire1.anchorMax;
-                keypadPivot = new Vector2(1f, 0.5f);
-
-                var bounds1 = GetBoundsInParentSpace(fireParent, fire1);
-                var bounds2 = GetBoundsInParentSpace(fireParent, fire2);
-                var combined = Encapsulate(bounds1, bounds2);
-
-                // Anchor/pivot on the right edge (like the old buttons), grow left.
-                keypadAnchoredPosition = new Vector2(combined.max.x, combined.center.y);
-                usedFireButtonsPlacement = true;
-
-                // Landscape tweak: shift left/up so the keypad stays on-screen.
-                if (isLandscape)
-                {
-                    keypadAnchoredPosition += new Vector2(-1.75f * cellWidth, cellHeight);
-                }
-                else
-                {
-                    keypadAnchoredPosition += new Vector2(-0.18f * cellWidth, 0);
-                }
-            }
-            else
-            {
-                // If we can only find one of them, still hide it.
-                if (fire1 != null) fire1.gameObject.SetActive(false);
-                if (fire2 != null) fire2.gameObject.SetActive(false);
-            }
-
-            var keypadGo = new GameObject("Keypad",
-                typeof(RectTransform),
-                typeof(CanvasGroup),
-                typeof(UnityEngine.UI.Image),
-                typeof(GridLayoutGroup));
-            keypadGo.transform.SetParent(keypadParent, false);
-            keypadGo.transform.SetAsLastSibling();
-
-            var keypadRect = keypadGo.GetComponent<RectTransform>();
-            keypadRect.anchorMin = keypadAnchorMin;
-            keypadRect.anchorMax = keypadAnchorMax;
-            keypadRect.pivot = keypadPivot;
-            keypadRect.sizeDelta = new Vector2(keypadWidth, keypadHeight);
-            keypadRect.anchoredPosition = keypadAnchoredPosition;
-
-            var keypadImage = keypadGo.GetComponent<UnityEngine.UI.Image>();
+            var keypadImage = padGo.AddComponent<UnityEngine.UI.Image>();
             keypadImage.color = new Color(0f, 0f, 0f, 0.15f);
             keypadImage.raycastTarget = false;
 
-            var keypadGroup = keypadGo.GetComponent<CanvasGroup>();
+            var keypadGroup = padGo.AddComponent<CanvasGroup>();
             keypadGroup.alpha = 1f;
 
-            var grid = keypadGo.GetComponent<GridLayoutGroup>();
+            var grid = padGo.AddComponent<GridLayoutGroup>();
             grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             grid.constraintCount = 3;
             grid.spacing = new Vector2(spacing, spacing);
             grid.childAlignment = TextAnchor.MiddleCenter;
-
             grid.cellSize = new Vector2(cellWidth, cellHeight);
 
             foreach (var keypadKey in GetKeypadKeys())
             {
-                CreateKeyButton(keypadGo.transform, inputDriver, keypadKey);
+                CreateKeyButton(padGo.transform, info.inputDriver, keypadKey);
+            }
+        }
+
+        private void BuildABContent(GameObject padGo, ControlRootInfo info)
+        {
+            var padRect = padGo.GetComponent<RectTransform>();
+
+            float buttonSize = Mathf.Min(padRect.sizeDelta.y, padRect.sizeDelta.x * 0.45f);
+            float offset = padRect.sizeDelta.x * 0.25f;
+
+            CreatePadButton(padGo.transform, info.inputDriver, '5', new Vector2(-offset, 0f),
+                new Vector2(buttonSize, buttonSize), info.assets.fire1, 0f, info.assets.fireColor, "A");
+            CreatePadButton(padGo.transform, info.inputDriver, '#', new Vector2(offset, 0f),
+                new Vector2(buttonSize, buttonSize), info.assets.fire2, 0f, info.assets.fireColor, "B");
+        }
+
+        private void BuildDPadContent(GameObject padGo, ControlRootInfo info, bool includeDiagonals)
+        {
+            var padRect = padGo.GetComponent<RectTransform>();
+
+            float cell = padRect.sizeDelta.x / 3f;
+            var buttonSize = new Vector2(cell * 0.95f, cell * 0.95f);
+            var assets = info.assets;
+
+            Vector2 CellPosition(int column, int row)
+            {
+                return new Vector2((column - 1) * cell, (1 - row) * cell);
             }
 
-            // Remember both variants so the layout can be switched per game
-            controlSets.Add(new ControlSet()
+            CreatePadButton(padGo.transform, info.inputDriver, '2', CellPosition(1, 0), buttonSize, assets.up, 0f, assets.directionColor, "^");
+            CreatePadButton(padGo.transform, info.inputDriver, '4', CellPosition(0, 1), buttonSize, assets.left, 0f, assets.directionColor, "<");
+            CreatePadButton(padGo.transform, info.inputDriver, '6', CellPosition(2, 1), buttonSize, assets.right, 0f, assets.directionColor, ">");
+            CreatePadButton(padGo.transform, info.inputDriver, '8', CellPosition(1, 2), buttonSize, assets.down, 0f, assets.directionColor, "v");
+
+            if (includeDiagonals)
             {
-                keypad = keypadGo,
-                fire1 = (fire1 != null) ? fire1.gameObject : null,
-                fire2 = (fire2 != null) ? fire2.gameObject : null
-            });
+                CreatePadButton(padGo.transform, info.inputDriver, '1', CellPosition(0, 0), buttonSize, assets.up, 45f, assets.directionColor, "\\");
+                CreatePadButton(padGo.transform, info.inputDriver, '3', CellPosition(2, 0), buttonSize, assets.up, -45f, assets.directionColor, "/");
+                CreatePadButton(padGo.transform, info.inputDriver, '7', CellPosition(0, 2), buttonSize, assets.down, -45f, assets.directionColor, "/");
+                CreatePadButton(padGo.transform, info.inputDriver, '9', CellPosition(2, 2), buttonSize, assets.down, 45f, assets.directionColor, "\\");
+            }
+        }
+
+        private static GameObject CreatePadButton(Transform parent, InputDriver inputDriver, char key,
+            Vector2 anchoredPosition, Vector2 size, Sprite sprite, float rotation, Color color, string fallbackLabel)
+        {
+            var buttonGo = new GameObject($"Key_{key}",
+                typeof(RectTransform),
+                typeof(UnityEngine.UI.Image),
+                typeof(UnityEngine.UI.Button),
+                typeof(global::Nofun.TouchKeypadButton));
+
+            buttonGo.transform.SetParent(parent, false);
+
+            var rect = buttonGo.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = size;
+            rect.anchoredPosition = anchoredPosition;
+            rect.localEulerAngles = new Vector3(0f, 0f, rotation);
+
+            var image = buttonGo.GetComponent<UnityEngine.UI.Image>();
+
+            if (sprite != null)
+            {
+                image.sprite = sprite;
+                image.color = color;
+                image.preserveAspect = true;
+            }
+            else
+            {
+                image.color = new Color(1f, 1f, 1f, 0.75f);
+                AddButtonLabel(buttonGo, fallbackLabel);
+            }
+
+            var touchHandler = buttonGo.GetComponent<global::Nofun.TouchKeypadButton>();
+            touchHandler.Init(inputDriver, key);
+
+            return buttonGo;
+        }
+
+        private void PlaceOverlayButtons(ControlRootInfo info)
+        {
+            if ((info.menuButton == null) && (info.settingButton == null))
+            {
+                return;
+            }
+
+            List<Rect> obstacles = CollectActiveControlRects(info);
+
+            if (info.menuButton != null)
+            {
+                PlaceOverlayButton(info, info.menuButton, info.menuOriginal, obstacles);
+                obstacles.Add(WorldRectOf(info.menuButton));
+            }
+
+            if (info.settingButton != null)
+            {
+                PlaceOverlayButton(info, info.settingButton, info.settingOriginal, obstacles);
+            }
+        }
+
+        private List<Rect> CollectActiveControlRects(ControlRootInfo info)
+        {
+            var rects = new List<Rect>();
+
+            void AddSide(ControlSide side)
+            {
+                if ((side.original != null) && side.original.activeSelf)
+                {
+                    rects.Add(WorldRectOfContent((RectTransform)side.original.transform));
+                }
+
+                foreach (var pad in side.built)
+                {
+                    if ((pad.Value != null) && pad.Value.activeSelf)
+                    {
+                        rects.Add(WorldRectOf((RectTransform)pad.Value.transform));
+                    }
+                }
+            }
+
+            AddSide(info.left);
+            AddSide(info.right);
+
+            return rects;
+        }
+
+        private void PlaceOverlayButton(ControlRootInfo info, RectTransform button, OverlayPlacement original, List<Rect> obstacles)
+        {
+            const float margin = 20f;
+
+            RestorePlacement(button, original);
+
+            if (!OverlapsAny(WorldRectOf(button), obstacles, margin))
+            {
+                return;
+            }
+
+            // Candidate spots inside the control area, corners and edge centers.
+            // In landscape the middle of the area is covered by the game display,
+            // so only corners are considered there.
+            Vector2[] candidates = info.isLandscape
+                ? new[] { new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, 0f), new Vector2(1f, 0f) }
+                : new[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f) };
+
+            foreach (var candidate in candidates)
+            {
+                MoveToAreaPoint(button, info.twoSides, candidate, margin);
+
+                if (!OverlapsAny(WorldRectOf(button), obstacles, margin * 0.5f))
+                {
+                    return;
+                }
+            }
+        }
+
+        private static void MoveToAreaPoint(RectTransform button, RectTransform area, Vector2 normalizedPoint, float margin)
+        {
+            Rect areaRect = area.rect;
+
+            var localPoint = new Vector2(
+                Mathf.Lerp(areaRect.xMin + margin, areaRect.xMax - margin, normalizedPoint.x),
+                Mathf.Lerp(areaRect.yMin + margin, areaRect.yMax - margin, normalizedPoint.y));
+
+            Vector3 worldPoint = area.TransformPoint(localPoint);
+
+            button.pivot = normalizedPoint;
+            button.position = new Vector3(worldPoint.x, worldPoint.y, button.position.z);
+        }
+
+        private static bool OverlapsAny(Rect rect, List<Rect> obstacles, float margin)
+        {
+            var grown = new Rect(rect.xMin - margin, rect.yMin - margin,
+                rect.width + (margin * 2f), rect.height + (margin * 2f));
+
+            foreach (var obstacle in obstacles)
+            {
+                if (grown.Overlaps(obstacle))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static Rect WorldRectOf(RectTransform target)
+        {
+            var corners = new Vector3[4];
+            target.GetWorldCorners(corners);
+
+            var min = Vector3.Min(Vector3.Min(corners[0], corners[1]), Vector3.Min(corners[2], corners[3]));
+            var max = Vector3.Max(Vector3.Max(corners[0], corners[1]), Vector3.Max(corners[2], corners[3]));
+
+            return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+        }
+
+        private static Rect WorldRectOfContent(RectTransform root)
+        {
+            Rect result = WorldRectOf(root);
+
+            foreach (Transform child in root)
+            {
+                if (child is RectTransform childRect)
+                {
+                    var childWorld = WorldRectOf(childRect);
+                    result = Rect.MinMaxRect(
+                        Mathf.Min(result.xMin, childWorld.xMin),
+                        Mathf.Min(result.yMin, childWorld.yMin),
+                        Mathf.Max(result.xMax, childWorld.xMax),
+                        Mathf.Max(result.yMax, childWorld.yMax));
+                }
+            }
+
+            return result;
         }
 
         private static IEnumerable<char> GetKeypadKeys()
@@ -408,6 +794,11 @@ namespace Nofun
             var touchHandler = buttonGo.GetComponent<global::Nofun.TouchKeypadButton>();
             touchHandler.Init(inputDriver, keypadKey);
 
+            AddButtonLabel(buttonGo, keypadKey.ToString());
+        }
+
+        private static void AddButtonLabel(GameObject buttonGo, string label)
+        {
             var textGo = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
             textGo.transform.SetParent(buttonGo.transform, false);
 
@@ -418,18 +809,11 @@ namespace Nofun
             textRect.offsetMax = Vector2.zero;
 
             var text = textGo.GetComponent<TextMeshProUGUI>();
-            text.text = keypadKey.ToString();
+            text.text = label;
             text.alignment = TextAlignmentOptions.Center;
             text.fontSize = 40;
             text.color = Color.black;
             text.raycastTarget = false;
-        }
-
-        private static float GetTopInParentSpace(RectTransform parent, RectTransform child)
-        {
-            var corners = new Vector3[4];
-            child.GetWorldCorners(corners);
-            return parent.InverseTransformPoint(corners[1]).y;
         }
 
         private static Bounds GetBoundsInParentSpace(RectTransform parent, RectTransform child)

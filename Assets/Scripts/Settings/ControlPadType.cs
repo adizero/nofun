@@ -17,13 +17,14 @@
 namespace Nofun.Settings
 {
     /// <summary>
-    /// On-screen touch control layout used while a game is running.
+    /// The kind of on-screen control pad shown on one side of the screen
+    /// while a game is running.
     /// </summary>
-    public enum ControlLayout
+    public enum ControlPadType
     {
-        // Keypad must stay 0 so settings saved before this option existed
-        // keep the previous default layout
-        Keypad = 0,
-        ABButtons = 1
+        DPad = 0,
+        DiagonalDPad = 1,
+        ABButtons = 2,
+        Keypad = 3
     }
 }

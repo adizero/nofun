@@ -116,7 +116,7 @@ namespace Nofun
                 if (setting != null)
                 {
                     graphicDriver.FpsLimit = setting.Value.fps;
-                    screenManager.ControlLayout = setting.Value.controlLayout;
+                    screenManager.SetControlLayouts(setting.Value.leftControlLayout, setting.Value.rightControlLayout);
 
                     if (setting.Value.screenMode != ScreenMode.Fullscreen)
                     {
@@ -342,7 +342,7 @@ namespace Nofun
 
             // Change orientation first
             screenManager.ScreenOrientation = setting.Value.orientation;
-            screenManager.ControlLayout = setting.Value.controlLayout;
+            screenManager.SetControlLayouts(setting.Value.leftControlLayout, setting.Value.rightControlLayout);
 
             graphicDriver.Initialize((setting.Value.screenMode == ScreenMode.CustomSize) ?
                 new Vector2(setting.Value.screenSizeX, setting.Value.screenSizeY) :

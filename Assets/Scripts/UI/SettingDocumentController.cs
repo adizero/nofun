@@ -59,7 +59,8 @@ namespace Nofun.UI
         private DropdownField deviceDropdown;
         private DropdownField systemVersionDropdown;
         private DropdownField cpuBackendDropdown;
-        private DropdownField controlLayoutDropdown;
+        private DropdownField leftControlDropdown;
+        private DropdownField rightControlDropdown;
 
         private Toggle softwareScissorCheck;
 
@@ -94,7 +95,8 @@ namespace Nofun.UI
             systemVersionDropdown = root.Q<DropdownField>("VersionCombo");
             softwareScissorCheck = root.Q<Toggle>("SoftwareScissorToggle");
             cpuBackendDropdown = root.Q<DropdownField>("CPUBackendCombo");
-            controlLayoutDropdown = root.Q<DropdownField>("ControlLayoutCombo");
+            leftControlDropdown = root.Q<DropdownField>("LeftControlCombo");
+            rightControlDropdown = root.Q<DropdownField>("RightControlCombo");
             fpsField = root.Q<TextField>("FPSField");
 
             confirmButton = root.Q<Button>("ConfirmButton");
@@ -118,7 +120,8 @@ namespace Nofun.UI
             {
                 // Hide them if not on mobile platform
                 orientationDropdown.style.display = DisplayStyle.None;
-                controlLayoutDropdown.style.display = DisplayStyle.None;
+                leftControlDropdown.style.display = DisplayStyle.None;
+                rightControlDropdown.style.display = DisplayStyle.None;
             }
         }
 
@@ -170,7 +173,8 @@ namespace Nofun.UI
                 orientationDropdown.index = (int)Settings.ScreenOrientation.Potrait;
                 systemVersionDropdown.index = (int)SystemVersion.Version150;
                 cpuBackendDropdown.index = (int)CPUBackend.Interpreter;
-                controlLayoutDropdown.index = (int)ControlLayout.Keypad;
+                leftControlDropdown.index = (int)ControlPadType.DPad;
+                rightControlDropdown.index = (int)ControlPadType.Keypad;
 
                 softwareScissorCheck.value = false;
 
@@ -188,7 +192,8 @@ namespace Nofun.UI
                 orientationDropdown.index = (int)setting.Value.orientation;
                 systemVersionDropdown.index = (int)setting.Value.systemVersion;
                 cpuBackendDropdown.index = (int)setting.Value.cpuBackend;
-                controlLayoutDropdown.index = (int)setting.Value.controlLayout;
+                leftControlDropdown.index = (int)setting.Value.leftControlLayout;
+                rightControlDropdown.index = (int)setting.Value.rightControlLayout;
 
                 softwareScissorCheck.value = setting.Value.enableSoftwareScissor;
                 confirmButton.text = "Save";
@@ -208,7 +213,8 @@ namespace Nofun.UI
             newSetting.enableSoftwareScissor = softwareScissorCheck.value;
             newSetting.fps = int.Parse(fpsField.value);
             newSetting.cpuBackend = (CPUBackend)cpuBackendDropdown.index;
-            newSetting.controlLayout = (ControlLayout)controlLayoutDropdown.index;
+            newSetting.leftControlLayout = (ControlPadType)leftControlDropdown.index;
+            newSetting.rightControlLayout = (ControlPadType)rightControlDropdown.index;
 
             return settingManager.Set(gameName, newSetting);
         }

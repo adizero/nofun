@@ -31,6 +31,7 @@ namespace Nofun.Settings
         public ScreenOrientation orientation;
         public SystemVersion systemVersion;
         public CPUBackend cpuBackend;
-        public ControlLayout controlLayout;
+        public ControlPadType leftControlLayout;
+        public ControlPadType rightControlLayout;
     }
 }

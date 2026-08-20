@@ -343,7 +343,9 @@ namespace Nofun.VM
                     screenMode = ScreenMode.CustomSize,
                     deviceModel = Module.VMGPCaps.SystemDeviceModel.NokiaNgage,
                     systemVersion = SystemVersion.Version150,
-                    enableSoftwareScissor = false
+                    enableSoftwareScissor = false,
+                    leftControlLayout = ControlPadType.DPad,
+                    rightControlLayout = ControlPadType.Keypad
                 };
             }
             else
@@ -356,7 +358,9 @@ namespace Nofun.VM
                     screenMode = ScreenMode.CustomSize,
                     deviceModel = Module.VMGPCaps.SystemDeviceModel.SonyEricssonT310,
                     systemVersion = SystemVersion.Version130,
-                    enableSoftwareScissor = false
+                    enableSoftwareScissor = false,
+                    leftControlLayout = ControlPadType.DPad,
+                    rightControlLayout = ControlPadType.Keypad
                 };
             }
         }
