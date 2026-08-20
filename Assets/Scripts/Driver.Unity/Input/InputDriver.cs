@@ -25,10 +25,41 @@ namespace Nofun.Driver.Unity.Input
     {
         private uint buttonData;
         private uint keypadButtonData;
+        private uint pointerButtonData;
+
+        private int pointerX;
+        private int pointerY;
 
         private readonly System.Collections.Generic.HashSet<char> pressedKeypadKeys = new();
 
-        private uint CombinedButtonData => buttonData | keypadButtonData;
+        private uint CombinedButtonData => buttonData | keypadButtonData | pointerButtonData;
+
+        public uint PointerPos => ((uint)(ushort)pointerY << 16) | (ushort)pointerX;
+
+        public void SetPointerState(int x, int y, bool down, bool altDown)
+        {
+            pointerX = x;
+            pointerY = y;
+
+            pointerButtonData = (down ? (uint)Driver.Input.KeyCode.PointerDown : 0) |
+                (altDown ? (uint)Driver.Input.KeyCode.PointerAltDown : 0);
+        }
+
+        /// <summary>
+        /// Attach (or refresh) the pointer capture component on the display
+        /// showing the emulated screen.
+        /// </summary>
+        public void AttachPointerCapture(UnityEngine.UI.RawImage display, System.Func<UnityEngine.Vector2> emulatedScreenSize)
+        {
+            DisplayPointerCapture capture = display.gameObject.GetComponent<DisplayPointerCapture>();
+
+            if (capture == null)
+            {
+                capture = display.gameObject.AddComponent<DisplayPointerCapture>();
+            }
+
+            capture.Setup(this, emulatedScreenSize);
+        }
 
         public void OnFire(InputValue value)
         {

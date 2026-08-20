@@ -143,11 +143,25 @@ namespace Nofun.Module.VMGPCaps
         private int GetCapsInput(VMPtr<InputCaps> capsPtr)
         {
             // The emulator provides a numeric keypad (on-screen or through key
-            // mappings). Pointer input is not currently forwarded to games.
+            // mappings). Touch input is forwarded as a pointer when emulating
+            // a touchscreen device.
+            ushort flags = (ushort)InputCapsFlags.NumericKeypad;
+
+            if (system.GameSetting.deviceModel.HasTouchscreen())
+            {
+                flags |= (ushort)InputCapsFlags.Pointer;
+
+                if ((system.GameSetting.deviceModel == SystemDeviceModel.SonyErricssonP800) ||
+                    (system.GameSetting.deviceModel == SystemDeviceModel.SonyErricisonP900))
+                {
+                    flags |= (ushort)InputCapsFlags.OnscreenControls;
+                }
+            }
+
             InputCaps caps = new InputCaps()
             {
                 size = (ushort)Marshal.SizeOf<InputCaps>(),
-                flags = (ushort)InputCapsFlags.NumericKeypad,
+                flags = flags,
                 keycount = 12
             };
 

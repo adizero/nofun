@@ -347,6 +347,16 @@ namespace Nofun
                 Vector2.zero, setting.Value.enableSoftwareScissor);
 
             graphicDriver.FpsLimit = Mathf.Clamp(setting.Value.fps, 1, 120);
+
+            // Forward touches on the emulated screen as pointer input (used by
+            // touchscreen devices like the P800/P900)
+            inputDriver.AttachPointerCapture(screenManager.CurrentDisplay,
+                () => new Vector2(graphicDriver.ScreenWidth, graphicDriver.ScreenHeight));
+
+            screenManager.ScreenOrientationChanged += _ =>
+                inputDriver.AttachPointerCapture(screenManager.CurrentDisplay,
+                    () => new Vector2(graphicDriver.ScreenWidth, graphicDriver.ScreenHeight));
+
             systemThread.Start();
 
             if (setting.Value.cpuBackend == CPUBackend.LLVM)

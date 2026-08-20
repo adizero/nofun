@@ -14,15 +14,29 @@
  * limitations under the License.
  */
 
+using Nofun.Driver.Input;
+using Nofun.Module.VMGPCaps;
+
 namespace Nofun.Module.VMGP
 {
     [Module]
     public partial class VMGP
     {
+        private bool PointerInputAvailable => system.GameSetting.deviceModel.HasTouchscreen();
+
         [ModuleCall]
         private uint vGetButtonData()
         {
-            return system.InputDriver.GetButtonData();
+            uint data = system.InputDriver.GetButtonData();
+
+            // Only expose the pointer buttons on emulated touchscreen devices,
+            // matching the input capabilities the game was told about
+            if (!PointerInputAvailable)
+            {
+                data &= ~(uint)(KeyCode.PointerDown | KeyCode.PointerAltDown);
+            }
+
+            return data;
         }
 
         [ModuleCall]
@@ -40,10 +54,8 @@ namespace Nofun.Module.VMGP
         [ModuleCall]
         private uint vGetPointerPos()
         {
-            // Pointer input is not forwarded to games yet (the input caps do not
-            // advertise ICAPS_POINTER either). Report position (0, 0): vertical
-            // in the high 16 bits, horizontal in the low 16 bits.
-            return 0;
+            // Vertical position in the high 16 bits, horizontal in the low 16 bits
+            return PointerInputAvailable ? system.InputDriver.PointerPos : 0;
         }
     }
 }

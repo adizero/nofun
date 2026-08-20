@@ -46,8 +46,7 @@ namespace Nofun.Module.VMGP
 
         private bool IsTilemapDataSupported(TextureFormat format)
         {
-            return (format == TextureFormat.RGB332) || (format == TextureFormat.Palette256) || (format == TextureFormat.Palette16) ||
-                (format == TextureFormat.Palette4) || (format == TextureFormat.Palette2) ||
+            return ((format >= TextureFormat.Monochrome) && (format <= TextureFormat.RGB332)) ||
                 (format == TextureFormat.RGB565) || (format == TextureFormat.RGB888) ||
                 (format == TextureFormat.ARGB8888) || (format == TextureFormat.ARGB4444);
         }

@@ -23,5 +23,11 @@ namespace Nofun.Driver.Input
         void EndFrame();
 
         uint KeyScan { get; }
+
+        /// <summary>
+        /// Last known pointer position on the emulated screen: vertical in the
+        /// high 16 bits, horizontal in the low 16 bits.
+        /// </summary>
+        uint PointerPos { get; }
     };
 }

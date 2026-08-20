@@ -38,6 +38,25 @@ namespace Nofun.Driver.Unity.Graphics
         public int MipCount => mipCount;
         public Driver.Graphics.TextureFormat Format => format;
 
+        // Gray levels follow the LCD ink convention: value 0 is the unlit
+        // (white) pixel, the highest value is fully dark.
+        private static readonly SColor[] gray2Palette = MakeGrayPalette(2);
+        private static readonly SColor[] gray4Palette = MakeGrayPalette(4);
+        private static readonly SColor[] gray16Palette = MakeGrayPalette(16);
+
+        private static SColor[] MakeGrayPalette(int levels)
+        {
+            SColor[] palette = new SColor[levels];
+
+            for (int i = 0; i < levels; i++)
+            {
+                float intensity = 1.0f - (float)i / (levels - 1);
+                palette[i] = new SColor(intensity, intensity, intensity);
+            }
+
+            return palette;
+        }
+
         private bool DoesFormatNeedTransform(Driver.Graphics.TextureFormat format)
         {
             return (format <= Driver.Graphics.TextureFormat.RGB332) || (format == Driver.Graphics.TextureFormat.RGB555)
@@ -92,6 +111,18 @@ namespace Nofun.Driver.Unity.Graphics
                 {
                     case Driver.Graphics.TextureFormat.RGB332:
                         finalConverData = DataConvertor.RGB332ToARGB8888(dataSpan, width, height, zeroAsTransparent);
+                        break;
+
+                    case Driver.Graphics.TextureFormat.Monochrome:
+                        finalConverData = DataConvertor.PaletteToARGB8888(dataSpan, width, height, 1, gray2Palette, zeroAsTransparent);
+                        break;
+
+                    case Driver.Graphics.TextureFormat.Gray4:
+                        finalConverData = DataConvertor.PaletteToARGB8888(dataSpan, width, height, 2, gray4Palette, zeroAsTransparent);
+                        break;
+
+                    case Driver.Graphics.TextureFormat.Gray16:
+                        finalConverData = DataConvertor.PaletteToARGB8888(dataSpan, width, height, 4, gray16Palette, zeroAsTransparent);
                         break;
 
                     case Driver.Graphics.TextureFormat.Palette2:

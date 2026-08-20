@@ -42,4 +42,22 @@ namespace Nofun.Module.VMGPCaps
         ArchosAV500 = 14,
         SendoX = 15
     }
+
+    public static class SystemDeviceModelExtensions
+    {
+        public static bool HasTouchscreen(this SystemDeviceModel model)
+        {
+            switch (model)
+            {
+                case SystemDeviceModel.SonyErricssonP800:
+                case SystemDeviceModel.SonyErricisonP900:
+                case SystemDeviceModel.MotorolaA920:
+                case SystemDeviceModel.MotorolaA925:
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+    }
 }
