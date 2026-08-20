@@ -261,21 +261,33 @@ namespace Nofun.Module.VMGP
             NativeStridePtr dest = destPtr.Read(system.Memory);
             NativeStridePtr source = sourcePtr.Read(system.Memory);
 
-            if (source.ptr.IsNull)
-            {
-                Logger.Warning(LogClass.VMGPGraphic, "vCopyRect with the screen as source is not implemented, skipping!");
-                return;
-            }
-
             int bytesPerPixel = (TextureUtil.GetPixelSizeInBits(ScreenPixelFormat) + 7) / 8;
             int rowBytes = width * bytesPerPixel;
 
             byte[] pixels = new byte[rowBytes * height];
 
-            for (int row = 0; row < height; row++)
+            if (source.ptr.IsNull)
             {
-                int offset = source.xpan + (source.ypan + row) * source.stride;
-                source.ptr[offset].AsSpan(system.Memory, rowBytes).CopyTo(pixels.AsSpan(row * rowBytes, rowBytes));
+                // Read back from the screen and convert to the RGB565 screen format
+                byte[] rgba = system.GraphicDriver.ReadScreenPixels(source.xpan / bytesPerPixel, source.ypan,
+                    width, height);
+
+                for (int i = 0; i < width * height; i++)
+                {
+                    ushort packed = (ushort)(((rgba[i * 4] >> 3) << 11) | ((rgba[i * 4 + 1] >> 2) << 5) |
+                        (rgba[i * 4 + 2] >> 3));
+
+                    pixels[i * 2] = (byte)packed;
+                    pixels[i * 2 + 1] = (byte)(packed >> 8);
+                }
+            }
+            else
+            {
+                for (int row = 0; row < height; row++)
+                {
+                    int offset = source.xpan + (source.ypan + row) * source.stride;
+                    source.ptr[offset].AsSpan(system.Memory, rowBytes).CopyTo(pixels.AsSpan(row * rowBytes, rowBytes));
+                }
             }
 
             if (dest.ptr.IsNull)

@@ -125,6 +125,12 @@ namespace Nofun.Driver.Unity.Graphics
                         finalConverData = DataConvertor.PaletteToARGB8888(dataSpan, width, height, 4, gray16Palette, zeroAsTransparent);
                         break;
 
+                    case Driver.Graphics.TextureFormat.RGB555:
+                    case Driver.Graphics.TextureFormat.RGB444:
+                    case Driver.Graphics.TextureFormat.ARGB1555:
+                        finalConverData = DataConvertor.Word16ToARGB8888(dataSpan, width, height, format, zeroAsTransparent);
+                        break;
+
                     case Driver.Graphics.TextureFormat.Palette2:
                         finalConverData = DataConvertor.PaletteToARGB8888(dataSpan, width, height, 1, palettes, zeroAsTransparent);
                         break;

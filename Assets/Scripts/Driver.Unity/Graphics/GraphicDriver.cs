@@ -895,9 +895,15 @@ namespace Nofun.Driver.Unity.Graphics
 
         public SColor GetScreenPixel(int x, int y)
         {
+            byte[] pixel = ReadScreenPixels(x, y, 1, 1);
+            return new SColor(pixel[0] / 255.0f, pixel[1] / 255.0f, pixel[2] / 255.0f, pixel[3] / 255.0f);
+        }
+
+        public byte[] ReadScreenPixels(int x, int y, int width, int height)
+        {
             FlushBatch();
 
-            SColor result = new SColor(0, 0, 0);
+            byte[] result = new byte[width * height * 4];
             System.Threading.ManualResetEvent readDone = new System.Threading.ManualResetEvent(false);
 
             // Go through the postponed queue so the readback stays ordered after
@@ -915,13 +921,19 @@ namespace Nofun.Driver.Unity.Graphics
                     RenderTexture previousActive = RenderTexture.active;
                     RenderTexture.active = screenTextureBackBuffer;
 
-                    Texture2D pixelReader = new Texture2D(1, 1, UnityEngine.TextureFormat.RGBA32, false);
+                    Texture2D pixelReader = new Texture2D(width, height, UnityEngine.TextureFormat.RGBA32, false);
 
                     // The back buffer is Y-up while Mophun coordinates are Y-down
-                    pixelReader.ReadPixels(new Rect(x, screenTextureBackBuffer.height - 1 - y, 1, 1), 0, 0, false);
+                    pixelReader.ReadPixels(new Rect(x, screenTextureBackBuffer.height - y - height, width, height), 0, 0, false);
 
-                    Color pixel = pixelReader.GetPixel(0, 0);
-                    result = new SColor(pixel.r, pixel.g, pixel.b, pixel.a);
+                    // Texture rows start at the bottom, flip them to Mophun order
+                    byte[] raw = pixelReader.GetRawTextureData();
+                    int rowBytes = width * 4;
+
+                    for (int row = 0; row < height; row++)
+                    {
+                        Buffer.BlockCopy(raw, (height - 1 - row) * rowBytes, result, row * rowBytes, rowBytes);
+                    }
 
                     RenderTexture.active = previousActive;
                     Destroy(pixelReader);

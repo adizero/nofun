@@ -38,11 +38,10 @@ namespace Nofun.Module.VMGP
 
         private bool IsSpriteFormatSupported(TextureFormat format)
         {
-            // Mono/gray, palette and RGB332 sprites are converted on the CPU, the
-            // direct-color formats below are uploaded to the GPU as-is.
-            return ((format >= TextureFormat.Monochrome) && (format <= TextureFormat.RGB332)) ||
-                (format == TextureFormat.RGB565) || (format == TextureFormat.RGB888) ||
-                (format == TextureFormat.ARGB8888) || (format == TextureFormat.ARGB4444);
+            // All base Mophun formats are supported: mono/gray, palette and the
+            // low direct-color formats are converted on the CPU, the rest are
+            // uploaded to the GPU as-is.
+            return (format >= TextureFormat.Monochrome) && (format <= TextureFormat.ARGB1555);
         }
 
         public ITexture Retrieve(IGraphicDriver driver, NativeSprite spriteInfo, Span<byte> spriteData, SColor[] palettes, bool color0Transparent)

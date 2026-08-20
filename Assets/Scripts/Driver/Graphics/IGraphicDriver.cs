@@ -57,6 +57,13 @@ namespace Nofun.Driver.Graphics
         /// renders all pending draws, so it is expensive - avoid calling it in bulk.
         /// </summary>
         SColor GetScreenPixel(int x, int y);
+
+        /// <summary>
+        /// Read back a rectangle of the emulated screen as RGBA32 bytes (4 bytes
+        /// per pixel, rows in Mophun top-down order). Flushes and renders all
+        /// pending draws, so it is expensive.
+        /// </summary>
+        byte[] ReadScreenPixels(int x, int y, int width, int height);
         #endregion
 
         #region 3D draw

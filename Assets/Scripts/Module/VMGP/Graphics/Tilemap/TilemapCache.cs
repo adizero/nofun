@@ -46,9 +46,7 @@ namespace Nofun.Module.VMGP
 
         private bool IsTilemapDataSupported(TextureFormat format)
         {
-            return ((format >= TextureFormat.Monochrome) && (format <= TextureFormat.RGB332)) ||
-                (format == TextureFormat.RGB565) || (format == TextureFormat.RGB888) ||
-                (format == TextureFormat.ARGB8888) || (format == TextureFormat.ARGB4444);
+            return (format >= TextureFormat.Monochrome) && (format <= TextureFormat.ARGB1555);
         }
 
         public static void GetTilePositionInAtlas(int tileIndex, out int x, out int y)

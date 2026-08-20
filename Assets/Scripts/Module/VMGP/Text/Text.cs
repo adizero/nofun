@@ -15,6 +15,7 @@
  */
 
 using Nofun.Driver.Graphics;
+using Nofun.Util.Logging;
 using Nofun.VM;
 using System;
 
@@ -32,8 +33,15 @@ namespace Nofun.Module.VMGP
         {
             VMPtr<VMGPFont> previousFont = activeFontPtr;
 
-            activeFontPtr = newFont;
-            activeFont = fontCache.Retrieve(newFont.Read(system.Memory), ScreenPalette);
+            try
+            {
+                activeFont = fontCache.Retrieve(newFont.Read(system.Memory), ScreenPalette);
+                activeFontPtr = newFont;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(LogClass.VMGPText, $"Failed to set active font: {ex.Message}, keeping the previous one");
+            }
 
             return previousFont;
         }
@@ -43,7 +51,8 @@ namespace Nofun.Module.VMGP
         {
             if (activeFont == null)
             {
-                throw new InvalidOperationException("No font is currently active to print!");
+                Logger.Error(LogClass.VMGPText, "No font is currently active to print!");
+                return;
             }
 
             activeFont.DrawText(system.GraphicDriver, system.Memory, x, y, value.Get(system.Memory),

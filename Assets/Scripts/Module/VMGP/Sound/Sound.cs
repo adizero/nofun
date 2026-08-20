@@ -25,13 +25,47 @@ namespace Nofun.Module.VMGP
     public partial class VMGP
     {
         private ISound currentSound;
+        private IPcmSound beepSound;
+
+        private const int BeepSampleRate = 22050;
+        private const short BeepAmplitude = 8192;
 
         [ModuleCall]
         private void vBeep(uint frequency, uint durationInMs)
         {
-            // No tone generator in the audio driver yet. Games mostly use this
-            // for feedback blips, so ignoring it is preferable to crashing.
-            Logger.Trace(LogClass.VMGPSound, $"Beep stubbed (frequency={frequency}, duration={durationInMs}ms)");
+            if ((frequency == 0) || (durationInMs == 0))
+            {
+                return;
+            }
+
+            try
+            {
+                int sampleCount = (int)(BeepSampleRate * durationInMs / 1000);
+                if (sampleCount == 0)
+                {
+                    return;
+                }
+
+                // Synthesize a square wave tone
+                int halfPeriod = Math.Max(1, (int)(BeepSampleRate / (frequency * 2)));
+                byte[] samples = new byte[sampleCount * 2];
+
+                for (int i = 0; i < sampleCount; i++)
+                {
+                    short value = (((i / halfPeriod) & 1) == 0) ? BeepAmplitude : (short)-BeepAmplitude;
+
+                    samples[i * 2] = (byte)value;
+                    samples[i * 2 + 1] = (byte)(value >> 8);
+                }
+
+                beepSound?.Stop();
+                beepSound = system.AudioDriver.LoadPCMSound(samples, 0, BeepSampleRate, 1, 16, false);
+                beepSound.Play();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(LogClass.VMGPSound, $"Beep failed: {ex}");
+            }
         }
 
         [ModuleCall]

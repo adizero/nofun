@@ -55,12 +55,10 @@ namespace Nofun.Driver.Graphics
                 case TextureFormat.RGB332:
                     return 8;
 
+                // RGB444 and RGB555 pixels are stored in 16-bit words with the
+                // top bits unused
                 case TextureFormat.RGB444:
-                    return 12;
-
                 case TextureFormat.RGB555:
-                    return 15;
-
                 case TextureFormat.RGB565:
                 case TextureFormat.ARGB4444:
                 case TextureFormat.ARGB1555:
