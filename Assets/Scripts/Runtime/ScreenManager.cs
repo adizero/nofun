@@ -52,7 +52,10 @@ namespace Nofun
             public RectTransform half;
             public GameObject original;
             public Settings.ControlPadType originalType;
-            public Vector2 areaCenter;
+
+            /// <summary>Bottom-center of the original controls, in half-local space.</summary>
+            public Vector2 areaAnchor;
+
             public Dictionary<Settings.ControlPadType, GameObject> built = new();
         }
 
@@ -300,14 +303,14 @@ namespace Nofun
                     half = halfLeft,
                     original = (dpad != null) ? dpad.gameObject : null,
                     originalType = Settings.ControlPadType.DPad,
-                    areaCenter = GetContentCenter(halfLeft, dpad)
+                    areaAnchor = GetContentBottomCenter(halfLeft, dpad)
                 },
                 right = new ControlSide()
                 {
                     half = halfRight,
                     original = (fires != null) ? fires.gameObject : null,
                     originalType = Settings.ControlPadType.ABButtons,
-                    areaCenter = GetContentCenter(halfRight, fires)
+                    areaAnchor = GetContentBottomCenter(halfRight, fires)
                 }
             };
 
@@ -370,11 +373,13 @@ namespace Nofun
             return image.sprite;
         }
 
-        private static Vector2 GetContentCenter(RectTransform half, RectTransform content)
+        private static Vector2 GetContentBottomCenter(RectTransform half, RectTransform content)
         {
             if (content == null)
             {
-                return Vector2.zero;
+                // Bottom-center of the half itself
+                Rect halfRect = half.rect;
+                return new Vector2(halfRect.center.x, halfRect.yMin);
             }
 
             Bounds bounds = GetBoundsInParentSpace(half, content);
@@ -387,7 +392,7 @@ namespace Nofun
                 }
             }
 
-            return bounds.center;
+            return new Vector2(bounds.center.x, bounds.min.y);
         }
 
         private static OverlayPlacement CapturePlacement(RectTransform target)
@@ -485,7 +490,11 @@ namespace Nofun
             padRect.anchorMax = new Vector2(0.5f, 0.5f);
             padRect.pivot = new Vector2(0.5f, 0.5f);
             padRect.sizeDelta = new Vector2(width, height);
-            padRect.anchoredPosition = ClampIntoRect(side.half.rect, side.areaCenter, width, height);
+
+            // Grow upwards from where the original controls rest, so every pad
+            // variant sits at the same thumb position
+            var desiredCenter = new Vector2(side.areaAnchor.x, side.areaAnchor.y + (height * 0.5f));
+            padRect.anchoredPosition = ClampIntoRect(side.half.rect, desiredCenter, width, height);
 
             switch (type)
             {
