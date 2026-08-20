@@ -307,10 +307,15 @@ namespace Nofun.UI
                     spec = "mpn"
                 }
                 #else
+                // The Android document picker can only filter by MIME type and
+                // .mpn has no registered one - what providers report for it
+                // varies per device, and files not matching the filter cannot
+                // be selected. Allow everything; InstallGame validates that the
+                // picked file really is a Mophun executable.
                 new FilterItem
                 {
                     name = "Mophun game",
-                    spec = "application/octet-stream"
+                    spec = "*/*"
                 }
                 #endif
             }, (string path) =>
