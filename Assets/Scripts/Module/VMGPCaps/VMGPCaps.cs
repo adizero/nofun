@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+using Nofun.Util.Logging;
 using Nofun.VM;
 using System;
 using System.Runtime.InteropServices;
@@ -171,10 +172,11 @@ namespace Nofun.Module.VMGPCaps
 
         private int GetCapsComms(VMPtr<CommCaps> capsPtr)
         {
+            // Only advertise what the stream module actually implements
             CommCaps caps = new CommCaps()
             {
                 size = (ushort)Marshal.SizeOf<CommCaps>(),
-                flags = (ushort)CommCapsFlags.StandardMorden
+                flags = (ushort)(CommCapsFlags.File | CommCapsFlags.TCP)
             };
 
             capsPtr.Write(system.Memory, caps);
@@ -202,7 +204,9 @@ namespace Nofun.Module.VMGPCaps
                     return GetCapsComms(buffer.Cast<CommCaps>());
 
                 default:
-                    throw new UnimplementedFeatureException($"Unimplemented capability {queryType}!");
+                    // 0 signals an unsupported query to the game
+                    Logger.Warning(LogClass.VMGPCaps, $"Unimplemented capability query {queryType}");
+                    return 0;
             }
         }
     };

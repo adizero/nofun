@@ -56,6 +56,11 @@ namespace Nofun.Module.VMStream
                         targetedStream = VMWrapperIStream.Create(system.PersistentDataPath, fileName, mode);
                         break;
                     }
+                case StreamType.TCP:
+                    {
+                        targetedStream = VMTcpStream.Create(fileName, mode);
+                        break;
+                    }
                 default:
                     {
                         throw new UnimplementedFeatureException($"Unimplemented stream type: {wantedType}!");
