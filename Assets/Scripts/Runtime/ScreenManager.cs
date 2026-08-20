@@ -294,7 +294,10 @@ namespace Nofun
             var info = new ControlRootInfo()
             {
                 isLandscape = isLandscape,
-                padBaseWidth = Mathf.Clamp(twoSides.rect.width * 0.45f, 300f, 700f),
+                // Bound by the control area height as well, so pads keep a
+                // similar size in the wide landscape control band
+                padBaseWidth = Mathf.Clamp(
+                    Mathf.Min(twoSides.rect.width * 0.45f, twoSides.rect.height * 0.75f), 300f, 700f),
                 twoSides = twoSides,
                 inputDriver = inputDriver,
                 assets = CollectPadAssets(dpad, fires),
