@@ -1,5 +1,5 @@
 /*
- * (C) 2023 Radrat Softworks
+ * (C) 2026 Radrat Softworks
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,23 +14,16 @@
  * limitations under the License.
  */
 
-using System;
-using Nofun.Module.VMGPCaps;
-
 namespace Nofun.Settings
 {
-    [Serializable]
-    public struct GameSetting
+    /// <summary>
+    /// On-screen touch control layout used while a game is running.
+    /// </summary>
+    public enum ControlLayout
     {
-        public ScreenMode screenMode;
-        public int screenSizeX;
-        public int screenSizeY;
-        public SystemDeviceModel deviceModel;
-        public bool enableSoftwareScissor;
-        public int fps;
-        public ScreenOrientation orientation;
-        public SystemVersion systemVersion;
-        public CPUBackend cpuBackend;
-        public ControlLayout controlLayout;
+        // Keypad must stay 0 so settings saved before this option existed
+        // keep the previous default layout
+        Keypad = 0,
+        ABButtons = 1
     }
 }

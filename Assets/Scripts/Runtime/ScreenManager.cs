@@ -47,6 +47,30 @@ namespace Nofun
 
         private Settings.ScreenOrientation screenOrientation;
 
+        private class ControlSet
+        {
+            public GameObject keypad;
+            public GameObject fire1;
+            public GameObject fire2;
+        }
+
+        private readonly List<ControlSet> controlSets = new();
+        private Settings.ControlLayout controlLayout = Settings.ControlLayout.Keypad;
+
+        /// <summary>
+        /// The on-screen control layout to use: the 4x3 keypad or the
+        /// original A/B (fire) buttons.
+        /// </summary>
+        public Settings.ControlLayout ControlLayout
+        {
+            get => controlLayout;
+            set
+            {
+                controlLayout = value;
+                ApplyControlLayout();
+            }
+        }
+
         public event System.Action<Settings.ScreenOrientation> ScreenOrientationChanged;
         private Coroutine confirmScreenSizeChangeCoroutine;
         private bool isConfirmingPotrait = false;
@@ -200,6 +224,31 @@ namespace Nofun
 
             EnsureKeypad(controlMobilePotrait, inputDriver, isLandscape: false);
             EnsureKeypad(controlMobileLandscape, inputDriver, isLandscape: true);
+
+            ApplyControlLayout();
+        }
+
+        private void ApplyControlLayout()
+        {
+            bool useKeypad = (controlLayout == Settings.ControlLayout.Keypad);
+
+            foreach (var controlSet in controlSets)
+            {
+                if (controlSet.keypad != null)
+                {
+                    controlSet.keypad.SetActive(useKeypad);
+                }
+
+                if (controlSet.fire1 != null)
+                {
+                    controlSet.fire1.SetActive(!useKeypad);
+                }
+
+                if (controlSet.fire2 != null)
+                {
+                    controlSet.fire2.SetActive(!useKeypad);
+                }
+            }
         }
 
         private void EnsureKeypad(GameObject controlRoot, InputDriver inputDriver, bool isLandscape)
@@ -317,6 +366,14 @@ namespace Nofun
             {
                 CreateKeyButton(keypadGo.transform, inputDriver, keypadKey);
             }
+
+            // Remember both variants so the layout can be switched per game
+            controlSets.Add(new ControlSet()
+            {
+                keypad = keypadGo,
+                fire1 = (fire1 != null) ? fire1.gameObject : null,
+                fire2 = (fire2 != null) ? fire2.gameObject : null
+            });
         }
 
         private static IEnumerable<char> GetKeypadKeys()
