@@ -93,7 +93,7 @@ namespace Nofun
 
         private readonly List<ControlRootInfo> controlRoots = new();
         private Settings.ControlPadType leftControlPad = Settings.ControlPadType.DPad;
-        private Settings.ControlPadType rightControlPad = Settings.ControlPadType.Keypad;
+        private Settings.ControlPadType rightControlPad = Settings.ControlPadType.ABButtons;
 
         /// <summary>
         /// Select which control pad to show on each side of the screen.

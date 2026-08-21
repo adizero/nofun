@@ -345,7 +345,7 @@ namespace Nofun.VM
                     systemVersion = SystemVersion.Version150,
                     enableSoftwareScissor = false,
                     leftControlLayout = ControlPadType.DPad,
-                    rightControlLayout = ControlPadType.Keypad
+                    rightControlLayout = ControlPadType.ABButtons
                 };
             }
             else
@@ -360,7 +360,7 @@ namespace Nofun.VM
                     systemVersion = SystemVersion.Version130,
                     enableSoftwareScissor = false,
                     leftControlLayout = ControlPadType.DPad,
-                    rightControlLayout = ControlPadType.Keypad
+                    rightControlLayout = ControlPadType.ABButtons
                 };
             }
         }

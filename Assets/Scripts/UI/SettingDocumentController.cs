@@ -174,7 +174,7 @@ namespace Nofun.UI
                 systemVersionDropdown.index = (int)SystemVersion.Version150;
                 cpuBackendDropdown.index = (int)CPUBackend.Interpreter;
                 leftControlDropdown.index = (int)ControlPadType.DPad;
-                rightControlDropdown.index = (int)ControlPadType.Keypad;
+                rightControlDropdown.index = (int)ControlPadType.ABButtons;
 
                 softwareScissorCheck.value = false;
 
