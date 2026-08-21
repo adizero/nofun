@@ -79,6 +79,8 @@ namespace Nofun
         {
             public bool isLandscape;
             public float padBaseWidth;
+            public Vector2 canvasSize;
+            public RectTransform padParent;
             public ControlSide left;
             public ControlSide right;
             public RectTransform twoSides;
@@ -290,13 +292,27 @@ namespace Nofun
             var dpad = FindDescendant(halfLeft, "Dpad") as RectTransform;
             var fires = FindDescendant(halfRight, "Normal") as RectTransform;
 
+            Canvas canvas = controlRoot.GetComponentInParent<Canvas>(true);
+            if (canvas == null)
+            {
+                return;
+            }
+
+            // Size and position the pads relative to the whole screen (canvas),
+            // not the scene-designed halves - those are not symmetric, so pads
+            // would end up sized and aligned differently per side
+            var canvasSize = ((RectTransform)canvas.transform).rect.size;
+            if (Mathf.Min(canvasSize.x, canvasSize.y) < 100f)
+            {
+                // The inactive orientation canvas may not be laid out yet
+                canvasSize = isLandscape ? new Vector2(2400f, 1080f) : new Vector2(1080f, 2400f);
+            }
+
             var info = new ControlRootInfo()
             {
                 isLandscape = isLandscape,
-                // Bound by the control area height as well, so pads keep a
-                // similar size in the wide landscape control band
-                padBaseWidth = Mathf.Clamp(
-                    Mathf.Min(twoSides.rect.width * 0.45f, twoSides.rect.height * 0.75f), 300f, 700f),
+                canvasSize = canvasSize,
+                padBaseWidth = Mathf.Clamp(Mathf.Min(canvasSize.x, canvasSize.y) * 0.42f, 300f, 700f),
                 twoSides = twoSides,
                 inputDriver = inputDriver,
                 assets = CollectPadAssets(dpad, fires),
@@ -315,19 +331,19 @@ namespace Nofun
             };
 
             // The burger (menu) and gear (setting) buttons live under the
-            // canvas-level "Absolute" overlay of the same canvas
-            Canvas canvas = controlRoot.GetComponentInParent<Canvas>(true);
-            if (canvas != null)
-            {
-                var absolute = canvas.transform.Find("Absolute");
-                if (absolute != null)
-                {
-                    info.menuButton = absolute.Find("Menu") as RectTransform;
-                    info.settingButton = absolute.Find("Setting") as RectTransform;
+            // canvas-level "Absolute" overlay of the same canvas; the runtime
+            // pads are parented there too so they can be screen-anchored
+            var absolute = canvas.transform.Find("Absolute") as RectTransform;
 
-                    info.menuOriginal = CapturePlacement(info.menuButton);
-                    info.settingOriginal = CapturePlacement(info.settingButton);
-                }
+            info.padParent = (absolute != null) ? absolute : (RectTransform)canvas.transform;
+
+            if (absolute != null)
+            {
+                info.menuButton = absolute.Find("Menu") as RectTransform;
+                info.settingButton = absolute.Find("Setting") as RectTransform;
+
+                info.menuOriginal = CapturePlacement(info.menuButton);
+                info.settingOriginal = CapturePlacement(info.settingButton);
             }
 
             controlRoots.Add(info);
@@ -455,45 +471,47 @@ namespace Nofun
                     break;
             }
 
-            Rect halfRect = side.half.rect;
+            // Cap the pad height to the lower part of the screen, so pads can
+            // never reach up into the displayed game content
+            float maxWidth = (info.canvasSize.x * 0.5f) - (PadEdgeMargin * 2f);
+            float maxHeight = (info.canvasSize.y * (info.isLandscape ? 0.5f : 0.35f)) - PadBottomMargin;
 
-            // Keep the pad inside its half of the control area, preserving the
-            // bottom margin
-            float scale = Mathf.Min(1f,
-                Mathf.Min(halfRect.width / width, (halfRect.height - PadBottomMargin) / height));
+            float scale = Mathf.Min(1f, Mathf.Min(maxWidth / width, maxHeight / height));
             width *= scale;
             height *= scale;
 
             var padGo = new GameObject($"Pad{type}", typeof(RectTransform));
-            padGo.transform.SetParent(side.half, false);
-            padGo.transform.SetAsLastSibling();
+            padGo.transform.SetParent(info.padParent, false);
+
+            // Keep the menu/setting buttons (siblings in the overlay) on top
+            padGo.transform.SetAsFirstSibling();
 
             var padRect = padGo.GetComponent<RectTransform>();
-            padRect.anchorMin = new Vector2(0.5f, 0.5f);
-            padRect.anchorMax = new Vector2(0.5f, 0.5f);
-            padRect.pivot = new Vector2(0.5f, 0.5f);
+            padRect.pivot = new Vector2(0.5f, 0f);
             padRect.sizeDelta = new Vector2(width, height);
 
-            // Uniform placement rule for every pad type on both sides: rest on
-            // a common bottom baseline; centered in the half in portrait, and
-            // pushed to the outer screen edge in landscape so the middle stays
-            // free for the game display
-            float x;
-
+            // Uniform, screen-anchored placement for every pad type on both
+            // sides: rest on a common baseline above the screen bottom. In
+            // portrait each pad is centered in its half of the screen width,
+            // in landscape pads hug the outer screen edges so the middle stays
+            // free for the game display.
             if (info.isLandscape)
             {
-                x = side.isLeft
-                    ? halfRect.xMin + PadEdgeMargin + (width * 0.5f)
-                    : halfRect.xMax - PadEdgeMargin - (width * 0.5f);
+                float anchorX = side.isLeft ? 0f : 1f;
+                float offsetX = (side.isLeft ? 1f : -1f) * (PadEdgeMargin + (width * 0.5f));
+
+                padRect.anchorMin = new Vector2(anchorX, 0f);
+                padRect.anchorMax = new Vector2(anchorX, 0f);
+                padRect.anchoredPosition = new Vector2(offsetX, PadBottomMargin);
             }
             else
             {
-                x = halfRect.center.x;
+                float anchorX = side.isLeft ? 0.25f : 0.75f;
+
+                padRect.anchorMin = new Vector2(anchorX, 0f);
+                padRect.anchorMax = new Vector2(anchorX, 0f);
+                padRect.anchoredPosition = new Vector2(0f, PadBottomMargin);
             }
-
-            float y = halfRect.yMin + PadBottomMargin + (height * 0.5f);
-
-            padRect.anchoredPosition = ClampIntoRect(halfRect, new Vector2(x, y), width, height);
 
             switch (type)
             {
@@ -511,19 +529,6 @@ namespace Nofun
             }
 
             return padGo;
-        }
-
-        private static Vector2 ClampIntoRect(Rect area, Vector2 center, float width, float height)
-        {
-            float minX = area.xMin + (width * 0.5f);
-            float maxX = area.xMax - (width * 0.5f);
-            float minY = area.yMin + (height * 0.5f);
-            float maxY = area.yMax - (height * 0.5f);
-
-            float x = (minX > maxX) ? area.center.x : Mathf.Clamp(center.x, minX, maxX);
-            float y = (minY > maxY) ? area.center.y : Mathf.Clamp(center.y, minY, maxY);
-
-            return new Vector2(x, y);
         }
 
         private void BuildKeypadContent(GameObject padGo, ControlRootInfo info)
