@@ -51,11 +51,7 @@ namespace Nofun
         {
             public RectTransform half;
             public GameObject original;
-            public Settings.ControlPadType originalType;
-
-            /// <summary>Bottom-center of the original controls, in half-local space.</summary>
-            public Vector2 areaAnchor;
-
+            public bool isLeft;
             public Dictionary<Settings.ControlPadType, GameObject> built = new();
         }
 
@@ -93,6 +89,9 @@ namespace Nofun
             public PadAssets assets;
             public InputDriver inputDriver;
         }
+
+        private const float PadBottomMargin = 40f;
+        private const float PadEdgeMargin = 40f;
 
         private readonly List<ControlRootInfo> controlRoots = new();
         private Settings.ControlPadType leftControlPad = Settings.ControlPadType.DPad;
@@ -305,15 +304,13 @@ namespace Nofun
                 {
                     half = halfLeft,
                     original = (dpad != null) ? dpad.gameObject : null,
-                    originalType = Settings.ControlPadType.DPad,
-                    areaAnchor = GetContentBottomCenter(halfLeft, dpad)
+                    isLeft = true
                 },
                 right = new ControlSide()
                 {
                     half = halfRight,
                     original = (fires != null) ? fires.gameObject : null,
-                    originalType = Settings.ControlPadType.ABButtons,
-                    areaAnchor = GetContentBottomCenter(halfRight, fires)
+                    isLeft = false
                 }
             };
 
@@ -376,28 +373,6 @@ namespace Nofun
             return image.sprite;
         }
 
-        private static Vector2 GetContentBottomCenter(RectTransform half, RectTransform content)
-        {
-            if (content == null)
-            {
-                // Bottom-center of the half itself
-                Rect halfRect = half.rect;
-                return new Vector2(halfRect.center.x, halfRect.yMin);
-            }
-
-            Bounds bounds = GetBoundsInParentSpace(half, content);
-
-            foreach (Transform child in content)
-            {
-                if (child is RectTransform childRect)
-                {
-                    bounds = Encapsulate(bounds, GetBoundsInParentSpace(half, childRect));
-                }
-            }
-
-            return new Vector2(bounds.center.x, bounds.min.y);
-        }
-
         private static OverlayPlacement CapturePlacement(RectTransform target)
         {
             if (target == null)
@@ -435,14 +410,15 @@ namespace Nofun
 
         private void ApplySide(ControlRootInfo info, ControlSide side, Settings.ControlPadType wanted)
         {
-            bool useOriginal = (wanted == side.originalType) && (side.original != null);
-
+            // The scene-designed controls are aligned and sized differently per
+            // side; runtime pads are used everywhere so every side and pad type
+            // follows the same placement rules.
             if (side.original != null)
             {
-                side.original.SetActive(useOriginal);
+                side.original.SetActive(false);
             }
 
-            if (!useOriginal && !side.built.ContainsKey(wanted))
+            if (!side.built.ContainsKey(wanted))
             {
                 side.built[wanted] = BuildPad(info, side, wanted);
             }
@@ -451,7 +427,7 @@ namespace Nofun
             {
                 if (pad.Value != null)
                 {
-                    pad.Value.SetActive(!useOriginal && (pad.Key == wanted));
+                    pad.Value.SetActive(pad.Key == wanted);
                 }
             }
         }
@@ -479,8 +455,12 @@ namespace Nofun
                     break;
             }
 
-            // Keep the pad inside its half of the control area
-            float scale = Mathf.Min(1f, Mathf.Min(side.half.rect.width / width, side.half.rect.height / height));
+            Rect halfRect = side.half.rect;
+
+            // Keep the pad inside its half of the control area, preserving the
+            // bottom margin
+            float scale = Mathf.Min(1f,
+                Mathf.Min(halfRect.width / width, (halfRect.height - PadBottomMargin) / height));
             width *= scale;
             height *= scale;
 
@@ -494,10 +474,26 @@ namespace Nofun
             padRect.pivot = new Vector2(0.5f, 0.5f);
             padRect.sizeDelta = new Vector2(width, height);
 
-            // Grow upwards from where the original controls rest, so every pad
-            // variant sits at the same thumb position
-            var desiredCenter = new Vector2(side.areaAnchor.x, side.areaAnchor.y + (height * 0.5f));
-            padRect.anchoredPosition = ClampIntoRect(side.half.rect, desiredCenter, width, height);
+            // Uniform placement rule for every pad type on both sides: rest on
+            // a common bottom baseline; centered in the half in portrait, and
+            // pushed to the outer screen edge in landscape so the middle stays
+            // free for the game display
+            float x;
+
+            if (info.isLandscape)
+            {
+                x = side.isLeft
+                    ? halfRect.xMin + PadEdgeMargin + (width * 0.5f)
+                    : halfRect.xMax - PadEdgeMargin - (width * 0.5f);
+            }
+            else
+            {
+                x = halfRect.center.x;
+            }
+
+            float y = halfRect.yMin + PadBottomMargin + (height * 0.5f);
+
+            padRect.anchoredPosition = ClampIntoRect(halfRect, new Vector2(x, y), width, height);
 
             switch (type)
             {
@@ -826,33 +822,6 @@ namespace Nofun
             text.fontSize = 40;
             text.color = Color.black;
             text.raycastTarget = false;
-        }
-
-        private static Bounds GetBoundsInParentSpace(RectTransform parent, RectTransform child)
-        {
-            var corners = new Vector3[4];
-            child.GetWorldCorners(corners);
-
-            var min = new Vector3(float.PositiveInfinity, float.PositiveInfinity, 0f);
-            var max = new Vector3(float.NegativeInfinity, float.NegativeInfinity, 0f);
-
-            for (var i = 0; i < 4; i++)
-            {
-                var p = parent.InverseTransformPoint(corners[i]);
-                min = Vector3.Min(min, p);
-                max = Vector3.Max(max, p);
-            }
-
-            var bounds = new Bounds();
-            bounds.SetMinMax(min, max);
-            return bounds;
-        }
-
-        private static Bounds Encapsulate(Bounds a, Bounds b)
-        {
-            a.Encapsulate(b.min);
-            a.Encapsulate(b.max);
-            return a;
         }
 
         private static Transform FindDescendant(Transform root, string name)
