@@ -67,33 +67,29 @@ namespace Nofun
             public Color fireColor = Color.white;
         }
 
-        private struct OverlayPlacement
-        {
-            public Vector2 anchorMin;
-            public Vector2 anchorMax;
-            public Vector2 pivot;
-            public Vector2 anchoredPosition;
-        }
-
         private class ControlRootInfo
         {
             public bool isLandscape;
             public float padBaseWidth;
+            public float padMaxWidth;
+            public float padMaxHeight;
             public Vector2 canvasSize;
             public RectTransform padParent;
             public ControlSide left;
             public ControlSide right;
-            public RectTransform twoSides;
             public RectTransform menuButton;
             public RectTransform settingButton;
-            public OverlayPlacement menuOriginal;
-            public OverlayPlacement settingOriginal;
             public PadAssets assets;
             public InputDriver inputDriver;
         }
 
         private const float PadBottomMargin = 40f;
         private const float PadEdgeMargin = 40f;
+        private const float OverlayButtonMargin = 24f;
+
+        // Headroom kept above landscape pads so the menu/setting buttons fit
+        // in the top corners without touching the pads
+        private const float LandscapeOverlayReserve = 160f;
 
         private readonly List<ControlRootInfo> controlRoots = new();
         private Settings.ControlPadType leftControlPad = Settings.ControlPadType.DPad;
@@ -312,8 +308,6 @@ namespace Nofun
             {
                 isLandscape = isLandscape,
                 canvasSize = canvasSize,
-                padBaseWidth = Mathf.Clamp(Mathf.Min(canvasSize.x, canvasSize.y) * 0.42f, 300f, 700f),
-                twoSides = twoSides,
                 inputDriver = inputDriver,
                 assets = CollectPadAssets(dpad, fires),
                 left = new ControlSide()
@@ -330,6 +324,27 @@ namespace Nofun
                 }
             };
 
+            if (isLandscape)
+            {
+                // The game display is centered horizontally and spans the full
+                // height, leaving both sides free top to bottom. Assume the
+                // display gets at most a screen-height wide square in the
+                // middle and let the pads fill the remaining side columns.
+                float sideWidth = Mathf.Max((canvasSize.x - canvasSize.y) * 0.5f, canvasSize.x * 0.2f);
+
+                info.padMaxWidth = sideWidth - (PadEdgeMargin * 2f);
+                info.padMaxHeight = canvasSize.y - PadBottomMargin - LandscapeOverlayReserve;
+                info.padBaseWidth = Mathf.Clamp(info.padMaxWidth, 300f, 700f);
+            }
+            else
+            {
+                // The game display occupies the upper part of the screen, so
+                // pads may only use the lower part
+                info.padMaxWidth = (canvasSize.x * 0.5f) - (PadEdgeMargin * 2f);
+                info.padMaxHeight = (canvasSize.y * 0.35f) - PadBottomMargin;
+                info.padBaseWidth = Mathf.Clamp(canvasSize.x * 0.42f, 300f, 700f);
+            }
+
             // The burger (menu) and gear (setting) buttons live under the
             // canvas-level "Absolute" overlay of the same canvas; the runtime
             // pads are parented there too so they can be screen-anchored
@@ -341,9 +356,6 @@ namespace Nofun
             {
                 info.menuButton = absolute.Find("Menu") as RectTransform;
                 info.settingButton = absolute.Find("Setting") as RectTransform;
-
-                info.menuOriginal = CapturePlacement(info.menuButton);
-                info.settingOriginal = CapturePlacement(info.settingButton);
             }
 
             controlRoots.Add(info);
@@ -387,30 +399,6 @@ namespace Nofun
 
             color = image.color;
             return image.sprite;
-        }
-
-        private static OverlayPlacement CapturePlacement(RectTransform target)
-        {
-            if (target == null)
-            {
-                return default;
-            }
-
-            return new OverlayPlacement()
-            {
-                anchorMin = target.anchorMin,
-                anchorMax = target.anchorMax,
-                pivot = target.pivot,
-                anchoredPosition = target.anchoredPosition
-            };
-        }
-
-        private static void RestorePlacement(RectTransform target, OverlayPlacement placement)
-        {
-            target.anchorMin = placement.anchorMin;
-            target.anchorMax = placement.anchorMax;
-            target.pivot = placement.pivot;
-            target.anchoredPosition = placement.anchoredPosition;
         }
 
         private void ApplyControlLayouts()
@@ -471,12 +459,9 @@ namespace Nofun
                     break;
             }
 
-            // Cap the pad height to the lower part of the screen, so pads can
-            // never reach up into the displayed game content
-            float maxWidth = (info.canvasSize.x * 0.5f) - (PadEdgeMargin * 2f);
-            float maxHeight = (info.canvasSize.y * (info.isLandscape ? 0.5f : 0.35f)) - PadBottomMargin;
-
-            float scale = Mathf.Min(1f, Mathf.Min(maxWidth / width, maxHeight / height));
+            // Cap the pads to the screen region not covered by the game
+            // display (lower part in portrait, side columns in landscape)
+            float scale = Mathf.Min(1f, Mathf.Min(info.padMaxWidth / width, info.padMaxHeight / height));
             width *= scale;
             height *= scale;
 
@@ -640,139 +625,44 @@ namespace Nofun
 
         private void PlaceOverlayButtons(ControlRootInfo info)
         {
-            if ((info.menuButton == null) && (info.settingButton == null))
+            if (info.isLandscape)
+            {
+                // Pads hug the bottom outer edges and the game display fills
+                // the middle, so the top outer corners stay free
+                PlaceOverlayButton(info.menuButton, new Vector2(0f, 1f),
+                    new Vector2(OverlayButtonMargin, -OverlayButtonMargin));
+                PlaceOverlayButton(info.settingButton, new Vector2(1f, 1f),
+                    new Vector2(-OverlayButtonMargin, -OverlayButtonMargin));
+            }
+            else
+            {
+                // Stack the buttons in the free column between the left and
+                // right pads, below the game display
+                float menuHeight = ScaledHeight(info.menuButton);
+
+                PlaceOverlayButton(info.menuButton, new Vector2(0.5f, 0f),
+                    new Vector2(0f, PadBottomMargin));
+                PlaceOverlayButton(info.settingButton, new Vector2(0.5f, 0f),
+                    new Vector2(0f, PadBottomMargin + menuHeight + OverlayButtonMargin));
+            }
+        }
+
+        private static void PlaceOverlayButton(RectTransform button, Vector2 anchor, Vector2 offset)
+        {
+            if (button == null)
             {
                 return;
             }
 
-            List<Rect> obstacles = CollectActiveControlRects(info);
-
-            if (info.menuButton != null)
-            {
-                PlaceOverlayButton(info, info.menuButton, info.menuOriginal, obstacles);
-                obstacles.Add(WorldRectOf(info.menuButton));
-            }
-
-            if (info.settingButton != null)
-            {
-                PlaceOverlayButton(info, info.settingButton, info.settingOriginal, obstacles);
-            }
+            button.anchorMin = anchor;
+            button.anchorMax = anchor;
+            button.pivot = anchor;
+            button.anchoredPosition = offset;
         }
 
-        private List<Rect> CollectActiveControlRects(ControlRootInfo info)
+        private static float ScaledHeight(RectTransform target)
         {
-            var rects = new List<Rect>();
-
-            void AddSide(ControlSide side)
-            {
-                if ((side.original != null) && side.original.activeSelf)
-                {
-                    rects.Add(WorldRectOfContent((RectTransform)side.original.transform));
-                }
-
-                foreach (var pad in side.built)
-                {
-                    if ((pad.Value != null) && pad.Value.activeSelf)
-                    {
-                        rects.Add(WorldRectOf((RectTransform)pad.Value.transform));
-                    }
-                }
-            }
-
-            AddSide(info.left);
-            AddSide(info.right);
-
-            return rects;
-        }
-
-        private void PlaceOverlayButton(ControlRootInfo info, RectTransform button, OverlayPlacement original, List<Rect> obstacles)
-        {
-            const float margin = 20f;
-
-            RestorePlacement(button, original);
-
-            if (!OverlapsAny(WorldRectOf(button), obstacles, margin))
-            {
-                return;
-            }
-
-            // Candidate spots inside the control area, corners and edge centers.
-            // In landscape the middle of the area is covered by the game display,
-            // so only corners are considered there.
-            Vector2[] candidates = info.isLandscape
-                ? new[] { new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, 0f), new Vector2(1f, 0f) }
-                : new[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f) };
-
-            foreach (var candidate in candidates)
-            {
-                MoveToAreaPoint(button, info.twoSides, candidate, margin);
-
-                if (!OverlapsAny(WorldRectOf(button), obstacles, margin * 0.5f))
-                {
-                    return;
-                }
-            }
-        }
-
-        private static void MoveToAreaPoint(RectTransform button, RectTransform area, Vector2 normalizedPoint, float margin)
-        {
-            Rect areaRect = area.rect;
-
-            var localPoint = new Vector2(
-                Mathf.Lerp(areaRect.xMin + margin, areaRect.xMax - margin, normalizedPoint.x),
-                Mathf.Lerp(areaRect.yMin + margin, areaRect.yMax - margin, normalizedPoint.y));
-
-            Vector3 worldPoint = area.TransformPoint(localPoint);
-
-            button.pivot = normalizedPoint;
-            button.position = new Vector3(worldPoint.x, worldPoint.y, button.position.z);
-        }
-
-        private static bool OverlapsAny(Rect rect, List<Rect> obstacles, float margin)
-        {
-            var grown = new Rect(rect.xMin - margin, rect.yMin - margin,
-                rect.width + (margin * 2f), rect.height + (margin * 2f));
-
-            foreach (var obstacle in obstacles)
-            {
-                if (grown.Overlaps(obstacle))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static Rect WorldRectOf(RectTransform target)
-        {
-            var corners = new Vector3[4];
-            target.GetWorldCorners(corners);
-
-            var min = Vector3.Min(Vector3.Min(corners[0], corners[1]), Vector3.Min(corners[2], corners[3]));
-            var max = Vector3.Max(Vector3.Max(corners[0], corners[1]), Vector3.Max(corners[2], corners[3]));
-
-            return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
-        }
-
-        private static Rect WorldRectOfContent(RectTransform root)
-        {
-            Rect result = WorldRectOf(root);
-
-            foreach (Transform child in root)
-            {
-                if (child is RectTransform childRect)
-                {
-                    var childWorld = WorldRectOf(childRect);
-                    result = Rect.MinMaxRect(
-                        Mathf.Min(result.xMin, childWorld.xMin),
-                        Mathf.Min(result.yMin, childWorld.yMin),
-                        Mathf.Max(result.xMax, childWorld.xMax),
-                        Mathf.Max(result.yMax, childWorld.yMax));
-                }
-            }
-
-            return result;
+            return (target != null) ? target.rect.height * target.localScale.y : 0f;
         }
 
         private static IEnumerable<char> GetKeypadKeys()
