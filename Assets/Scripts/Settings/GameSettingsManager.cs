@@ -44,7 +44,23 @@ namespace Nofun.Settings
                 return null;
             }
 
-            return JsonUtility.FromJson<GameSetting>(File.ReadAllText(gameSettingPath));
+            string settingText = File.ReadAllText(gameSettingPath);
+            GameSetting setting = JsonUtility.FromJson<GameSetting>(settingText);
+
+            // Settings saved before control layouts existed have no such keys
+            // in the JSON, which would silently map both sides to enum value 0
+            // (DPad); use the regular defaults for them instead
+            if (!settingText.Contains("\"leftControlLayout\""))
+            {
+                setting.leftControlLayout = ControlPadType.DPad;
+            }
+
+            if (!settingText.Contains("\"rightControlLayout\""))
+            {
+                setting.rightControlLayout = ControlPadType.ABButtons;
+            }
+
+            return setting;
         }
 
         public bool Set(string gameName, GameSetting setting)
