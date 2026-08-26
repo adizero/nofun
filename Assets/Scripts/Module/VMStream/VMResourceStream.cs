@@ -45,19 +45,29 @@ namespace Nofun.Module.VMStream
 
             this.filePath = Path.Join(baseResourcePath, $"{resourceNumber:X8}");
 
+            this.executable = executable;
+            this.mode = mode;
+            this.resourceNumber = resourceNumber;
+            this.maxSize = executable.GetResourceSize(resourceNumber);
+
             try
             {
                 groundStream = File.Open(this.filePath, FileMode.Open, FileAccess.ReadWrite);
+
+                // A valid ground file is always written at full resource size. A shorter file is a
+                // truncated/corrupt leftover from an interrupted write; drop it and fall back to the
+                // embedded resource so reads do not return garbage or short data.
+                if (groundStream.Length < maxSize)
+                {
+                    groundStream.Close();
+                    groundStream = null;
+                    File.Delete(this.filePath);
+                }
             }
             catch (Exception _)
             {
                 // Nothing yet
             }
-
-            this.executable = executable;
-            this.mode = mode;
-            this.resourceNumber = resourceNumber;
-            this.maxSize = executable.GetResourceSize(resourceNumber);
         }
 
         public int Read(Span<byte> buffer, object extraArgs)

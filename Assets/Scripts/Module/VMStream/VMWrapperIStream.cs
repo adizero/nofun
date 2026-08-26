@@ -43,7 +43,9 @@ namespace Nofun.Module.VMGP
                 access = FileAccess.Write;
             }
 
-            FileMode openMode = writable ? FileMode.OpenOrCreate : FileMode.Open;
+            // Without the CREATE flag, opening a missing file must fail even when writable
+            // (matches Mophun "r+" semantics). Only CREATE/TRUNC below may bring a file into existence.
+            FileMode openMode = FileMode.Open;
 
             // Truncate and create is very similar, except that truncate requires the file to already exist
             // If both these flags present, prefer create
