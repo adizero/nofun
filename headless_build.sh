@@ -12,6 +12,9 @@ export ANDROID_NDK_ROOT="$ANDROID_PLAYER_DIR/NDK"
 export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
 export JAVA_HOME="$ANDROID_PLAYER_DIR/OpenJDK"
 
+# Make sure the editor doesn't try to open a window on the host machine, which will fail in headless environments.
+export DISPLAY=
+
 "$UNITY_EDITOR_DIR/Unity" \
     -batchmode -nographics -quit \
     -projectPath "${PROJECT_ROOT}" \
