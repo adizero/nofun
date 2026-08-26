@@ -17,6 +17,7 @@
 using Nofun.Driver.Graphics;
 using Nofun.Util;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 
 using System.Collections.Generic;
 using System;
@@ -498,6 +499,54 @@ namespace Nofun.Driver.Unity.Graphics
             StartCoroutine(PerformOrientationChange());
         }
 
+        // Unity's depth-bit RenderTexture constructor picks the depth/stencil
+        // format implicitly, and on some mobile GPUs (e.g. Adreno 5xx on Vulkan)
+        // it selects D32_SFloat_S8_UInt even for a 24-bit request. That format is
+        // rejected by the driver with no fallback, so RenderTexture.Create fails
+        // and the whole render target is lost. Choose the format explicitly and
+        // verify creation, preferring 24-bit depth + 8-bit stencil (the 3D path
+        // relies on the stencil) and degrading gracefully if unsupported.
+        private static RenderTexture CreateBackBufferTexture(int width, int height)
+        {
+            GraphicsFormat colorFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
+
+            GraphicsFormat[] depthStencilFormats =
+            {
+                GraphicsFormat.D24_UNorm_S8_UInt,
+                GraphicsFormat.D32_SFloat_S8_UInt,
+                GraphicsFormat.D16_UNorm,
+                GraphicsFormat.D32_SFloat,
+            };
+
+            foreach (GraphicsFormat depthStencilFormat in depthStencilFormats)
+            {
+                RenderTextureDescriptor descriptor =
+                    new RenderTextureDescriptor(width, height, colorFormat, depthStencilFormat)
+                    {
+                        msaaSamples = 1
+                    };
+
+                RenderTexture candidate = new RenderTexture(descriptor);
+
+                if (candidate.Create())
+                {
+                    Nofun.Util.Logging.Logger.Trace(Nofun.Util.Logging.LogClass.VMGP3D,
+                        $"Back buffer depth/stencil format: {depthStencilFormat}");
+                    return candidate;
+                }
+
+                candidate.Release();
+                Destroy(candidate);
+            }
+
+            Nofun.Util.Logging.Logger.Error(Nofun.Util.Logging.LogClass.VMGP3D,
+                "No supported depth/stencil format for back buffer; using depth-less target");
+
+            RenderTexture fallback = new RenderTexture(width, height, 0, colorFormat);
+            fallback.Create();
+            return fallback;
+        }
+
         public void Initialize(Vector2 size, bool softwareScissor = false)
         {
             screenManager.ScreenOrientationChanged += OnOrientationChanged;
@@ -537,7 +586,7 @@ namespace Nofun.Driver.Unity.Graphics
                 fullscreen = true;
             }
 
-            screenTextureBackBuffer = new RenderTexture((int)size.x, (int)size.y, 32);
+            screenTextureBackBuffer = CreateBackBufferTexture((int)size.x, (int)size.y);
             screenTextureBackBuffer.filterMode = FilterMode.Point;
 
             if (!fullscreen)
