@@ -39,6 +39,12 @@ namespace Nofun.VM
         private const int InstructionPerRun = 10000;
         private const int DefaultStackSize = 0x2000;
 
+        // The header's dynamic heap size is only a minimum hint: real titles
+        // routinely allocate far more, treating the device's free RAM as the
+        // real budget (many SE games grab multi-megabyte buffers at start-up).
+        // Give every title a generous heap floor so those allocations succeed.
+        private const uint MinimumHeapSize = 16 * 1024 * 1024;
+
         private VMMemory memory;
         private VMCallMap callMap;
         private VMMetaInfoReader metaInfoReader;
@@ -213,7 +219,8 @@ namespace Nofun.VM
             stackStartAddress = totalSize + stackSize;
             heapAddress = stackStartAddress + VMMemory.DataAlignment;       // Make a gap to avoid weird stack manipulation
 
-            roundedHeapSize = MemoryUtil.AlignUp(executable.Header.dynamicDataHeapSize * 4 / 3, VMMemory.DataAlignment);
+            uint requestedHeapSize = Math.Max(executable.Header.dynamicDataHeapSize * 4 / 3, MinimumHeapSize);
+            roundedHeapSize = MemoryUtil.AlignUp(requestedHeapSize, VMMemory.DataAlignment);
             totalSize = heapAddress + roundedHeapSize;
 
             taskStackSectionAddress = totalSize;
