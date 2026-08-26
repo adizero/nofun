@@ -796,7 +796,23 @@ namespace Nofun.Driver.Unity.Graphics
             JobScheduler.Instance.PostponeToUnityThread(() =>
             {
                 BeginRender();
+
+                // vClearScreen clears the entire screen regardless of the active clip
+                // window. Drop the scissor and widen the viewport to the full back buffer
+                // for the clear, then restore the client-requested state for later draws.
+                if (!softwareScissor)
+                {
+                    commandBuffer.DisableScissorRect();
+                }
+                commandBuffer.SetViewport(new Rect(0, 0, screenSize.x, screenSize.y));
+
                 commandBuffer.ClearRenderTarget(false, true, color.ToUnityColor());
+
+                commandBuffer.SetViewport(GetUnityScreenRect(serverSideState.viewportRect));
+                if (!softwareScissor && !in3DMode)
+                {
+                    commandBuffer.EnableScissorRect(GetUnityScreenRect(serverSideState.scissorRect, true));
+                }
             });
         }
 
