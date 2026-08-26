@@ -58,7 +58,7 @@ namespace Nofun.VM
 
         public static bool operator >=(VMPtr<T> lhs, uint addr)
         {
-            return lhs.address > addr;
+            return lhs.address >= addr;
         }
 
         public static bool operator ==(VMPtr<T> lhs, uint addr)
