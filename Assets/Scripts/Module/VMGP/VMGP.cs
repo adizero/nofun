@@ -38,6 +38,7 @@ namespace Nofun.Module.VMGP
             this.spriteCache = new();
             this.tilemapCache = new();
             this.heapAllocator = new BlockAllocator(system.HeapSize);
+            Util.Logging.Logger.Warning(Util.Logging.LogClass.VMGPSystem, $"Guest heap size = {system.HeapSize} bytes");
 
             InitializeTasks();
         }

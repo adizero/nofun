@@ -53,7 +53,7 @@ namespace Nofun.Module.VMGP
             long offset = heapAllocator.Allocate(size);
             if (offset < 0)
             {
-                Logger.Error(LogClass.VMGPSystem, $"Failed to allocate new pointer with size of {size}");
+                Logger.Error(LogClass.VMGPSystem, $"Failed to allocate new pointer with size of {size} (heap total={system.HeapSize}, free={heapAllocator.AmountFree})");
                 return VMPtr<Any>.Null;
             }
 

@@ -73,6 +73,8 @@ namespace Nofun.Module.VMGP
 
         private int ShowMessageBox(uint flags, string content, string title)
         {
+            Logger.Warning(LogClass.VMGPSystem, $"Guest message box: title=\"{title}\" content=\"{content}\"");
+
             Severity boxSeverity;
             switch (true)
             {
