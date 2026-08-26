@@ -175,25 +175,24 @@ namespace Nofun.Module.VMGP
         private VMPtr<byte> NumberToString(long val, VMPtr<byte> buf, byte len, byte pad)
         {
             string valConverted = val.ToString();
-            Span<byte> destBuf = buf.AsSpan(system.Memory, Math.Max(valConverted.Length + 1, len + 1));
+            int fieldWidth = Math.Max(valConverted.Length, len);
+            Span<byte> destBuf = buf.AsSpan(system.Memory, fieldWidth + 1);
+
+            // The number is right-justified in a field of width len, with the fill
+            // character padded on the left (e.g. vitoa(1, buf, 2, '0') -> "01").
+            int padCount = fieldWidth - valConverted.Length;
+            for (int i = 0; i < padCount; i++)
+            {
+                destBuf[i] = pad;
+            }
 
             for (int i = 0; i < valConverted.Length; i++)
             {
-                destBuf[i] = (byte)valConverted[i];
+                destBuf[padCount + i] = (byte)valConverted[i];
             }
 
-            if (valConverted.Length < len)
-            {
-                for (int i = valConverted.Length; i < len; i++)
-                {
-                    destBuf[i] = pad;
-                }
-            }
-
-            int nullTerminatorPosition = Math.Max(valConverted.Length, len);
-
-            destBuf[nullTerminatorPosition] = 0;
-            return buf + nullTerminatorPosition;
+            destBuf[fieldWidth] = 0;
+            return buf + fieldWidth;
         }
 
         [ModuleCall]
