@@ -17,6 +17,7 @@
 using Nofun.Driver.Graphics;
 using Nofun.Util;
 using System;
+using System.IO.Hashing;
 
 namespace Nofun.Module.VMGP
 {
@@ -24,6 +25,7 @@ namespace Nofun.Module.VMGP
     {
         public uint tileCount;
         public bool invalidated = false;
+        public uint contentHash;
 
         public ITexture texture;
         public override DateTime LastAccessed { get; set; }
@@ -83,9 +85,17 @@ namespace Nofun.Module.VMGP
 
             TilemapCacheEntry entry = GetFromCache(tileSpriteDataAddr);
 
+            // The cache is keyed by the guest address of the tile graphics, but a game can
+            // load a different backdrop into that same address. Hash the actual tile pixels
+            // so a content change (not only a palette change) rebuilds the atlas instead of
+            // serving a stale one.
+            XxHash32 hasher = new();
+            hasher.Append(tileSpriteData);
+            uint contentHash = BitConverter.ToUInt32(hasher.GetCurrentHash());
+
             if (entry != null)
             {
-                if (!entry.invalidated && (entry.tileCount >= tileMaxCount))
+                if (!entry.invalidated && (entry.tileCount >= tileMaxCount) && (entry.contentHash == contentHash))
                 {
                     return entry.texture;
                 }
@@ -106,7 +116,11 @@ namespace Nofun.Module.VMGP
             byte[] dataUpload = new byte[256 * 8 * lineWidthOneTile];
             int oneTileSize = lineWidthOneTile * 8;
 
-            for (int i = 0; i < tileMaxCount; i++)
+            // Never read past the tile data the caller handed us: tileMaxCount may have been
+            // bumped up to a previous (larger) atlas size while the new backdrop has fewer tiles.
+            int uploadableTileCount = Math.Min(tileMaxCount, tileSpriteData.Length / oneTileSize);
+
+            for (int i = 0; i < uploadableTileCount; i++)
             {
                 for (int y = 0; y < 8; y++)
                 {
@@ -121,6 +135,7 @@ namespace Nofun.Module.VMGP
             {
                 entry.invalidated = false;
                 entry.tileCount = (uint)tileMaxCount;
+                entry.contentHash = contentHash;
                 entry.texture = resultTexture;
             }
             else
@@ -129,6 +144,7 @@ namespace Nofun.Module.VMGP
                 {
                     texture = resultTexture,
                     tileCount = (uint)tileMaxCount,
+                    contentHash = contentHash,
                     invalidated = false
                 });
             }
