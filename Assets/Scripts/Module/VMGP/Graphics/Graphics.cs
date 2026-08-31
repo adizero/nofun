@@ -31,6 +31,22 @@ namespace Nofun.Module.VMGP
         private int foregroundColor;
         private int backgroundColor;
         private uint flipCount;
+
+        // The pseudo-3D road is submitted as a vertical stack of flat trapezoids,
+        // each drawn as two triangles sharing the same depth band. Track the last
+        // synthesized ground band so a trapezoid's second triangle does not repaint
+        // over the road already drawn for its first triangle.
+        private uint groundBandFrame;
+        private int groundBandTop;
+        private int groundBandBottom;
+
+        // Ground tint sampled from the current tileset (see Tilemap), so the
+        // synthesized ground follows the track theme (warm for dirt, cool for
+        // winter, ...). Normalized to unit mean brightness; modulated per band by
+        // the road grey's brightness. Invalid until a colourful tileset is loaded.
+        private SColor groundTint;
+        private bool groundTintValid;
+
         private uint currentTransferMode = (uint)TransferMode.Transparent;
 
         // Pixel format of data games exchange with the screen (vCopyRect).
@@ -185,7 +201,102 @@ namespace Nofun.Module.VMGP
         private void vDrawFlatPolygon(VMPtr<Triangle> triPtr)
         {
             Triangle tri = triPtr.Read(system.Memory);
-            system.GraphicDriver.DrawTriangle(tri.x0, tri.y0, tri.x1, tri.y1, tri.x2, tri.y2, GetColor(foregroundColor));
+
+            SColor fillColor = GetColor(foregroundColor);
+            SynthesizeGroundBand(tri, fillColor);
+
+            system.GraphicDriver.DrawTriangle(tri.x0, tri.y0, tri.x1, tri.y1, tri.x2, tri.y2, fillColor);
+        }
+
+        // The pseudo-3D road is drawn as a stack of flat trapezoids from the horizon
+        // down to full screen width, but the game never fills the ground plane beside
+        // the narrowing road, so the wedges next to it show the background clear colour
+        // ("suspended road"). Recreate the ground: before a road trapezoid, fill its
+        // full screen-width depth band with a ground colour derived from the band, so
+        // the road (drawn on top) sits inside alternating ground bands aligned to the
+        // road segments. The band colour is not required to be grey - coloured road
+        // segments (e.g. blue water crossings) still get a ground band beside them.
+        private void SynthesizeGroundBand(Triangle tri, SColor color)
+        {
+            // Opt-in per title (see the "Pseudo-3D ground fill" game setting); this
+            // reshapes what a game draws, so it stays off unless explicitly enabled.
+            if (!system.GameSetting.enablePseudo3DGroundFill)
+            {
+                return;
+            }
+
+            if (!TryGetHorizontalBand(tri, out int yTop, out int yBottom))
+            {
+                return;
+            }
+
+            // Each trapezoid arrives as two consecutive triangles sharing the band;
+            // fill only once so the second triangle does not repaint over the road.
+            if ((flipCount == groundBandFrame) && (yTop == groundBandTop) && (yBottom == groundBandBottom))
+            {
+                return;
+            }
+
+            groundBandFrame = flipCount;
+            groundBandTop = yTop;
+            groundBandBottom = yBottom;
+
+            system.GraphicDriver.FillRect(0, yTop, system.GraphicDriver.ScreenWidth, yBottom, GroundColorFor(color));
+        }
+
+        // Derive the ground band colour from the road band's brightness. When a
+        // tileset tint is available, tint the band by the track theme; otherwise fall
+        // back to a warm dirt tone. Only the band's luminance drives the ground (not
+        // its hue), so alternating road bands - grey or coloured (e.g. blue water) -
+        // produce alternating ground bands that stay aligned with the road segments.
+        private SColor GroundColorFor(SColor roadBand)
+        {
+            float bandLuma = (roadBand.r + roadBand.g + roadBand.b) / 3.0f;
+
+            if (groundTintValid)
+            {
+                return new SColor(
+                    Math.Min(1.0f, groundTint.r * bandLuma),
+                    Math.Min(1.0f, groundTint.g * bandLuma),
+                    Math.Min(1.0f, groundTint.b * bandLuma));
+            }
+
+            // Warm dirt tone scaled by the band brightness.
+            return new SColor(bandLuma, bandLuma * 0.55f, 0.0f);
+        }
+
+        private static bool TryGetHorizontalBand(Triangle tri, out int yTop, out int yBottom)
+        {
+            yTop = 0;
+            yBottom = 0;
+
+            int flatWidth;
+            if (tri.y0 == tri.y1)
+            {
+                flatWidth = Math.Abs(tri.x0 - tri.x1);
+            }
+            else if (tri.y1 == tri.y2)
+            {
+                flatWidth = Math.Abs(tri.x1 - tri.x2);
+            }
+            else if (tri.y0 == tri.y2)
+            {
+                flatWidth = Math.Abs(tri.x0 - tri.x2);
+            }
+            else
+            {
+                return false;
+            }
+
+            // A genuine road band spans a wide horizontal edge; ignore slivers.
+            if (flatWidth < 16)
+            {
+                return false;
+            }
+
+            yTop = Math.Min(tri.y0, Math.Min(tri.y1, tri.y2));
+            yBottom = Math.Max(tri.y0, Math.Max(tri.y1, tri.y2));
+            return true;
         }
 
         [ModuleCall]

@@ -44,6 +44,10 @@ namespace Nofun.Module.VMGP
         private uint currentPaletteHash;
         private bool mapExisting = false;
 
+        // Cache key for the sampled ground tint (see Graphics ground synthesis) so
+        // it is only recomputed when the tileset content changes.
+        private uint groundTintKey;
+
         private TilemapCache tilemapCache;
 
         private bool IsTilemapFormatSupported(TextureFormat format)
@@ -140,7 +144,111 @@ namespace Nofun.Module.VMGP
             mapAtlas = tilemapCache.Retrive(system.GraphicDriver, headerData, headerData.tileSpriteData.Value, tileData, maxIndex,
                 ScreenPalette, false);
 
+            UpdateGroundTint(tileData, format, maxIndex);
+
             return 1;
+        }
+
+        // Sample an average colour from the tileset pixels so the synthesized road
+        // ground can follow the track theme. Normalized to unit mean brightness so
+        // only the hue/temperature is carried; the per-band brightness comes from
+        // the road grey. Only recomputed when the tileset content changes.
+        private void UpdateGroundTint(Span<byte> tileData, TextureFormat format, int tileCount)
+        {
+            if (!system.GameSetting.enablePseudo3DGroundFill || (tileCount <= 0))
+            {
+                return;
+            }
+
+            XxHash32 hasher = new();
+            hasher.Append(tileData);
+            uint key = BitConverter.ToUInt32(hasher.GetCurrentHash());
+            if (key == groundTintKey)
+            {
+                return;
+            }
+            groundTintKey = key;
+
+            byte[] argb = DecodeTileDataToArgb(tileData, format, tileCount);
+            if (argb == null)
+            {
+                groundTintValid = false;
+                return;
+            }
+
+            double sumR = 0.0, sumG = 0.0, sumB = 0.0;
+            long count = 0;
+            for (int i = 0; i + 3 < argb.Length; i += 4)
+            {
+                // The converters emit bytes in A, R, G, B order.
+                byte a = argb[i];
+                if (a == 0)
+                {
+                    continue;
+                }
+
+                sumR += argb[i + 1];
+                sumG += argb[i + 2];
+                sumB += argb[i + 3];
+                count++;
+            }
+
+            if (count == 0)
+            {
+                groundTintValid = false;
+                return;
+            }
+
+            float avgR = (float)(sumR / count / 255.0);
+            float avgG = (float)(sumG / count / 255.0);
+            float avgB = (float)(sumB / count / 255.0);
+
+            float mean = (avgR + avgG + avgB) / 3.0f;
+            if (mean < 0.04f)
+            {
+                // Tileset is essentially black; no meaningful tint to derive.
+                groundTintValid = false;
+                return;
+            }
+
+            groundTint = new SColor(avgR / mean, avgG / mean, avgB / mean);
+            groundTintValid = true;
+        }
+
+        private byte[] DecodeTileDataToArgb(Span<byte> tileData, TextureFormat format, int tileCount)
+        {
+            // Tiles are 8px wide and stored as consecutive 8x8 blocks, so the whole
+            // stream decodes as an 8 x (8 * tileCount) image.
+            int width = TileMapTileWidth;
+            int height = TileMapTileHeight * tileCount;
+
+            switch (format)
+            {
+                case TextureFormat.RGB332:
+                    return DataConvertor.RGB332ToARGB8888(tileData, width, height, false);
+
+                case TextureFormat.RGB555:
+                case TextureFormat.RGB444:
+                case TextureFormat.ARGB1555:
+                    return DataConvertor.Word16ToARGB8888(tileData, width, height, format, false);
+
+                case TextureFormat.Palette2:
+                    return DataConvertor.PaletteToARGB8888(tileData, width, height, 1, ScreenPalette, false);
+
+                case TextureFormat.Palette4:
+                    return DataConvertor.PaletteToARGB8888(tileData, width, height, 2, ScreenPalette, false);
+
+                case TextureFormat.Palette16:
+                    return DataConvertor.PaletteToARGB8888(tileData, width, height, 4, ScreenPalette, false);
+
+                case TextureFormat.Palette256:
+                    return DataConvertor.PaletteToARGB8888(tileData, width, height, 8, ScreenPalette, false);
+
+                default:
+                    // Monochrome/greyscale (and unusual formats) carry no colour
+                    // theme; leave the tint invalid so the warm fallback is used.
+                    return null;
+            }
         }
 
         [ModuleCall]
@@ -287,6 +395,8 @@ namespace Nofun.Module.VMGP
 
             NRectangle currentClip = system.GraphicDriver.ClipRect;
 
+            NRectangle effectiveClip = currentClip;
+
             int screenPosX = mapHeader.xPan;
             int screenPosY = mapHeader.yPan;
 
@@ -296,8 +406,8 @@ namespace Nofun.Module.VMGP
             int startDrawX = screenPosX - xPosNormed % TileMapTileWidth;
             int startDrawY = screenPosY - yPosNormed % TileMapTileHeight;
 
-            int mapDrawWidth = currentClip.x1 - startDrawX;
-            int mapDrawHeight = currentClip.y1 - startDrawY;
+            int mapDrawWidth = effectiveClip.x1 - startDrawX;
+            int mapDrawHeight = effectiveClip.y1 - startDrawY;
 
             if ((mapDrawWidth == 0) || (mapDrawHeight == 0))
             {
@@ -318,9 +428,9 @@ namespace Nofun.Module.VMGP
             Span<byte> mapData = mapHeader.mapData.AsSpan(system.Memory, mapHeader.mapWidth * mapHeader.mapHeight * indexingMul);
 
             // Try to clip rect and later restore back
-            system.GraphicDriver.ClipRect = new NRectangle(Math.Max(screenPosX, currentClip.x), Math.Max(screenPosY, currentClip.y),
-                Math.Min(mapDrawWidth, currentClip.width),
-                Math.Min(mapDrawHeight, currentClip.height));
+            system.GraphicDriver.ClipRect = new NRectangle(Math.Max(screenPosX, effectiveClip.x), Math.Max(screenPosY, effectiveClip.y),
+                Math.Min(mapDrawWidth, effectiveClip.width),
+                Math.Min(mapDrawHeight, effectiveClip.height));
 
             RefreshMapAtlasValidStatus();
 
