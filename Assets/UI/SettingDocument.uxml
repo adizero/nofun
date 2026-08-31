@@ -31,6 +31,7 @@
                         <UnityEngine.Localization.LocalizedString property="label" table="GUID:198be8f0d9d907049947f8336106f789" entry="Id(99190880849923)" />
                     </Bindings>
                 </ui:Toggle>
+                <ui:Toggle label="Pseudo-3D ground fill" name="Pseudo3DGroundFillToggle" tooltip="Draw ground bands beside the road for pseudo-3D racers (game-specific)" style="visibility: visible;" />
                 <Bindings>
                     <UnityEngine.Localization.LocalizedString property="text" table="GUID:198be8f0d9d907049947f8336106f789" entry="Id(99190687911936)" />
                 </Bindings>

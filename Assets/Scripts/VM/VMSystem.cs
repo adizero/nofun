@@ -351,6 +351,7 @@ namespace Nofun.VM
                     deviceModel = Module.VMGPCaps.SystemDeviceModel.NokiaNgage,
                     systemVersion = SystemVersion.Version150,
                     enableSoftwareScissor = false,
+                    enablePseudo3DGroundFill = false,
                     leftControlLayout = ControlPadType.DPad,
                     rightControlLayout = ControlPadType.ABButtons
                 };
@@ -366,6 +367,7 @@ namespace Nofun.VM
                     deviceModel = Module.VMGPCaps.SystemDeviceModel.SonyEricssonT310,
                     systemVersion = SystemVersion.Version130,
                     enableSoftwareScissor = false,
+                    enablePseudo3DGroundFill = false,
                     leftControlLayout = ControlPadType.DPad,
                     rightControlLayout = ControlPadType.ABButtons
                 };

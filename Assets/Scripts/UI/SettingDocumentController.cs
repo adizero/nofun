@@ -63,6 +63,7 @@ namespace Nofun.UI
         private DropdownField rightControlDropdown;
 
         private Toggle softwareScissorCheck;
+        private Toggle pseudo3DGroundFillCheck;
 
         private GameSettingsManager settingManager;
         private GameSetting? suggestedSetting;
@@ -94,6 +95,7 @@ namespace Nofun.UI
             deviceDropdown = root.Q<DropdownField>("DeviceCombo");
             systemVersionDropdown = root.Q<DropdownField>("VersionCombo");
             softwareScissorCheck = root.Q<Toggle>("SoftwareScissorToggle");
+            pseudo3DGroundFillCheck = root.Q<Toggle>("Pseudo3DGroundFillToggle");
             cpuBackendDropdown = root.Q<DropdownField>("CPUBackendCombo");
             leftControlDropdown = root.Q<DropdownField>("LeftControlCombo");
             rightControlDropdown = root.Q<DropdownField>("RightControlCombo");
@@ -177,6 +179,7 @@ namespace Nofun.UI
                 rightControlDropdown.index = (int)ControlPadType.ABButtons;
 
                 softwareScissorCheck.value = false;
+                pseudo3DGroundFillCheck.value = false;
 
                 confirmButton.text = "Start";
             }
@@ -196,6 +199,7 @@ namespace Nofun.UI
                 rightControlDropdown.index = (int)setting.Value.rightControlLayout;
 
                 softwareScissorCheck.value = setting.Value.enableSoftwareScissor;
+                pseudo3DGroundFillCheck.value = setting.Value.enablePseudo3DGroundFill;
                 confirmButton.text = "Save";
             }
         }
@@ -211,6 +215,7 @@ namespace Nofun.UI
             newSetting.orientation = (Settings.ScreenOrientation)orientationDropdown.index;
             newSetting.systemVersion = (SystemVersion)systemVersionDropdown.index;
             newSetting.enableSoftwareScissor = softwareScissorCheck.value;
+            newSetting.enablePseudo3DGroundFill = pseudo3DGroundFillCheck.value;
             newSetting.fps = int.Parse(fpsField.value);
             newSetting.cpuBackend = (CPUBackend)cpuBackendDropdown.index;
             newSetting.leftControlLayout = (ControlPadType)leftControlDropdown.index;
