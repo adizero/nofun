@@ -915,37 +915,118 @@ namespace Nofun.Driver.Unity.Graphics
             DrawLineThickScaled(x0, y0, x1, y1, lineColor);
         }
 
+        // Sutherland-Hodgman half-plane test for the screen rectangle.
+        // side: 0 = x>=bound, 1 = x<=bound, 2 = y>=bound, 3 = y<=bound.
+        private static bool ClipInside(Vector2 p, int side, float bound)
+        {
+            switch (side)
+            {
+                case 0: return p.x >= bound;
+                case 1: return p.x <= bound;
+                case 2: return p.y >= bound;
+                default: return p.y <= bound;
+            }
+        }
+
+        private static Vector2 ClipIntersect(Vector2 a, Vector2 b, int side, float bound)
+        {
+            if (side <= 1)
+            {
+                float t = (bound - a.x) / (b.x - a.x);
+                return new Vector2(bound, a.y + t * (b.y - a.y));
+            }
+            else
+            {
+                float t = (bound - a.y) / (b.y - a.y);
+                return new Vector2(a.x + t * (b.x - a.x), bound);
+            }
+        }
+
+        private static int ClipAgainst(Span<Vector2> input, int n, int side, float bound, Span<Vector2> output)
+        {
+            int outCount = 0;
+            for (int i = 0; i < n; i++)
+            {
+                Vector2 cur = input[i];
+                Vector2 prev = input[(i + n - 1) % n];
+                bool curIn = ClipInside(cur, side, bound);
+                bool prevIn = ClipInside(prev, side, bound);
+
+                if (curIn)
+                {
+                    if (!prevIn)
+                    {
+                        output[outCount++] = ClipIntersect(prev, cur, side, bound);
+                    }
+                    output[outCount++] = cur;
+                }
+                else if (prevIn)
+                {
+                    output[outCount++] = ClipIntersect(prev, cur, side, bound);
+                }
+            }
+            return outCount;
+        }
+
+        // Clip a triangle to the visible screen rectangle. A triangle clipped to a
+        // rectangle yields a convex polygon of up to 7 vertices; output must hold 8.
+        private int ClipTriangleToScreen(float x0, float y0, float x1, float y1, float x2, float y2,
+            Span<Vector2> output)
+        {
+            Span<Vector2> bufA = stackalloc Vector2[8];
+            Span<Vector2> bufB = stackalloc Vector2[8];
+
+            bufA[0] = new Vector2(x0, y0);
+            bufA[1] = new Vector2(x1, y1);
+            bufA[2] = new Vector2(x2, y2);
+            int n = 3;
+
+            n = ClipAgainst(bufA, n, 0, 0.0f, bufB);
+            if (n < 3) return 0;
+            n = ClipAgainst(bufB, n, 1, screenSize.x, bufA);
+            if (n < 3) return 0;
+            n = ClipAgainst(bufA, n, 2, 0.0f, bufB);
+            if (n < 3) return 0;
+            n = ClipAgainst(bufB, n, 3, screenSize.y, output);
+            return n;
+        }
+
         public void DrawTriangle(int x0, int y0, int x1, int y1, int x2, int y2, SColor fillColor)
         {
+            // Tile GPUs (e.g. Adreno) drop triangles whose vertices fall far outside the
+            // rasteriser guard band. The pseudo-3D ground/road trapezoids reach coordinates
+            // in the thousands, so clip to the visible rectangle before batching; flat
+            // colour makes rectangle clipping exact and preserves on-screen coverage.
+            Span<Vector2> clipped = stackalloc Vector2[8];
+            int count = ClipTriangleToScreen(x0, y0, x1, y1, x2, y2, clipped);
+            if (count < 3)
+            {
+                return;
+            }
+
             Begin2DBatching(whiteTexture);
-
-            Vector3[] positions = new Vector3[]
-            {
-                GetUnityCoords(x0, y0),
-                GetUnityCoords(x1, y1),
-                GetUnityCoords(x2, y2)
-            };
-
-            int[] indices = new int[]
-            {
-                0, 1, 2
-            };
-
-            Vector2[] uvs = new Vector2[]
-            {
-                new Vector2(0, 0),
-                new Vector2(1, 0),
-                new Vector2(0.5f, 1)
-            };
 
             Color oneColor = fillColor.ToUnityColor();
 
-            Color[] colors = new Color[]
+            Vector3[] positions = new Vector3[count];
+            Vector2[] uvs = new Vector2[count];
+            Color[] colors = new Color[count];
+            for (int i = 0; i < count; i++)
             {
-                oneColor,
-                oneColor,
-                oneColor
-            };
+                positions[i] = GetUnityCoords(clipped[i].x, clipped[i].y);
+                uvs[i] = new Vector2(0, 0);
+                colors[i] = oneColor;
+            }
+
+            // Fan-triangulate the clipped convex polygon.
+            int[] indices = new int[(count - 2) * 3];
+            int idx = 0;
+            for (int i = 1; i < count - 1; i++)
+            {
+                indices[idx++] = 0;
+                indices[idx++] = i;
+                indices[idx++] = i + 1;
+            }
 
             meshBatcher.AddBasic(positions, uvs, colors, indices);
         }
