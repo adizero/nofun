@@ -39,9 +39,6 @@ namespace Nofun.Driver.Graphics
         #region Text functions
         void DrawText(int posX, int posY, int sizeX, int sizeY, List<int> positions, ITexture atlas,
             TextDirection direction, SColor textColor);
-        void DrawSystemText(short x0, short y0, string text, SColor backColor, SColor foreColor);
-        void SelectSystemFont(uint fontSize, uint fontFlags, int charCodeShouldBeInFont);
-        int GetStringExtentRelativeToSystemFont(string str);
         #endregion
 
         #region 2D general draw

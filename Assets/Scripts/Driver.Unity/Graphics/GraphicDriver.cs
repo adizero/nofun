@@ -34,8 +34,6 @@ namespace Nofun.Driver.Unity.Graphics
 {
     public class GraphicDriver : MonoBehaviour, IGraphicDriver
     {
-        private readonly int NGAGE_PPI = 130;
-        private const int MEASURED_CACHE_LIMIT = 4000;
         private const string BlackTransparentUniformName = "_Black_Transparent";
         private const string MainTexUniformName = "_MainTex";
 
@@ -65,7 +63,6 @@ namespace Nofun.Driver.Unity.Graphics
         private const string Render3DTransparentTestUniformName = "_TransparentTest";
 
         private const string ZClearValueUniformName = "_ClearValue";
-        private const int TMPSpawnPerAlloc = 5;
 
         private ScreenManager screenManager;
         private ILayoutService layoutService;
@@ -76,12 +73,6 @@ namespace Nofun.Driver.Unity.Graphics
         private Action stopProcessor;
         private Texture2D whiteTexture;
         private Vector2 screenSize;
-        private Dictionary<string, int> measuredCache;
-
-        private TMPro.FontStyles selectedFontStyles;
-        private float selectedFontSize = 11.5f;
-        private float selectedOutlineWidth = 0.0f;
-        private int fontMeshUsed = 0;
 
         private ClientState serverSideState;
         private ClientState clientSideState;
@@ -91,12 +82,6 @@ namespace Nofun.Driver.Unity.Graphics
         private bool in3DMode = false;
 
         private MeshBatcher meshBatcher;
-
-        [SerializeField]
-        private TMPro.TMP_Text[] textRenders;
-
-        [SerializeField]
-        private TMPro.TMP_Text textMeasure;
 
         [SerializeField]
         private Material mophunDrawTextureMaterial;
@@ -113,7 +98,6 @@ namespace Nofun.Driver.Unity.Graphics
         private CommandBuffer commandBuffer;
         private Mesh quadMesh;
 
-        private List<TMPro.TMP_Text> textRenderInternals;
         private Dictionary<ulong, Material> materialCache;
 
         private List<BufferPusher> bufferPushers;
@@ -605,7 +589,6 @@ namespace Nofun.Driver.Unity.Graphics
 
             meshBatcher = new();
             materialCache = new();
-            measuredCache = new();
             clientSideState = new();
             serverSideState = new();
             bufferPushers = new();
@@ -624,7 +607,6 @@ namespace Nofun.Driver.Unity.Graphics
             SetupWhiteTexture();
             SetupQuadMesh();
 
-            textRenderInternals = new(textRenders);
             orthoMatrix = Matrix4x4.Ortho(0, ScreenWidth, 0, ScreenHeight, 1, -100);
         }
 
@@ -1128,7 +1110,6 @@ namespace Nofun.Driver.Unity.Graphics
                 {
                     mophunCamera.Render();
 
-                    fontMeshUsed = 0;
                     meshBatcher.Reset();
 
                     began = false;
@@ -1145,154 +1126,6 @@ namespace Nofun.Driver.Unity.Graphics
                 // Sleep to keep up with the predefined FPS
                 System.Threading.Thread.Sleep((int)(remaining * 1000));
             }
-        }
-
-        private float EmulatedPointToPixels(float point)
-        {
-            return point * NGAGE_PPI / 72.0f;
-        }
-
-        public void SelectSystemFont(uint fontSize, uint fontFlags, int charCodeShouldBeInFont)
-        {
-            // TODO: Use the character hint
-            float fontSizeNew = fontSize;
-
-            if (BitUtil.FlagSet(fontSize, SystemFontSize.PixelFlag))
-            {
-                fontSizeNew = (fontSize & ~(uint)SystemFontSize.PixelFlag);
-            }
-            else if (BitUtil.FlagSet(fontSize, SystemFontSize.PointFlag))
-            {
-                fontSizeNew = (fontSize & ~(uint)SystemFontSize.PointFlag);
-                fontSizeNew = EmulatedPointToPixels(fontSize);
-            }
-            else
-            {
-                switch ((SystemFontSize)fontSize)
-                {
-                    case SystemFontSize.Large:
-                        {
-                            fontSizeNew = 14.5f;
-                            break;
-                        }
-
-                    case SystemFontSize.Normal:
-                        {
-                            fontSizeNew = 13.0f;
-                            break;
-                        }
-
-                    case SystemFontSize.Small:
-                        {
-                            fontSizeNew = 11.5f;
-                            break;
-                        }
-                }
-            }
-
-            selectedFontSize = fontSizeNew;
-
-            TMPro.FontStyles styles = TMPro.FontStyles.Normal;
-
-            if (BitUtil.FlagSet(fontFlags, SystemFontStyle.Bold))
-            {
-                styles |= TMPro.FontStyles.Bold;
-            }
-
-            if (BitUtil.FlagSet(fontFlags, SystemFontStyle.Italic))
-            {
-                styles |= TMPro.FontStyles.Italic;
-            }
-
-            if (BitUtil.FlagSet(fontFlags, SystemFontStyle.Underline))
-            {
-                styles |= TMPro.FontStyles.Underline;
-            }
-
-            if (BitUtil.FlagSet(fontFlags, SystemFontStyle.OutlineEffect))
-            {
-                selectedOutlineWidth = 0.2f;
-            }
-            else
-            {
-                selectedOutlineWidth = 0.0f;
-            }
-
-            selectedFontStyles = styles;
-        }
-
-        public void DrawSystemText(short x0, short y0, string text, SColor backColor, SColor foreColor)
-        {
-            FlushBatch();
-
-            JobScheduler.Instance.PostponeToUnityThread(() =>
-            {
-                BeginRender();
-
-                if (textRenderInternals.Count <= fontMeshUsed)
-                {
-                    // Add 5 more
-                    for (int i = 0; i < TMPSpawnPerAlloc; i++)
-                    {
-                        GameObject newObj = Instantiate(textRenders[0].gameObject, textRenders[0].transform.parent);
-                        newObj.name = $"RenderText{i + fontMeshUsed}";
-
-                        textRenderInternals.Add(newObj.GetComponent<TMPro.TMP_Text>());
-                    }
-                }
-
-                TMPro.TMP_Text textRender = textRenderInternals[fontMeshUsed];
-
-                textRender.text = text;
-                textRender.color = foreColor.ToUnityColor();
-                textRender.fontStyle = selectedFontStyles;
-                textRender.outlineWidth = selectedOutlineWidth;
-                textRender.fontSize = selectedFontSize;
-                textRender.outlineColor = backColor.ToUnityColor();
-                textRender.isOverlay = true;
-
-                LayoutRebuilder.ForceRebuildLayoutImmediate(textRender.rectTransform);
-                textRender.ForceMeshUpdate();
-
-                Matrix4x4 modelMatrix = Matrix4x4.TRS(GetUnityCoords(x0, y0), Quaternion.identity, Vector3.one);
-
-                commandBuffer.DrawMesh(textRender.mesh, modelMatrix, textRender.fontSharedMaterial);
-                fontMeshUsed++;
-            });
-        }
-
-        public int GetStringExtentRelativeToSystemFont(string value)
-        {
-            if (measuredCache.TryGetValue(value, out int cachedLength))
-            {
-                return cachedLength;
-            }
-
-            if (measuredCache.Count >= MEASURED_CACHE_LIMIT)
-            {
-                // Purge all and redo
-                measuredCache.Clear();
-            }
-
-            int resultValue = 0;
-
-            JobScheduler.Instance.RunOnUnityThreadSync(() =>
-            {
-                textMeasure.fontStyle = selectedFontStyles;
-                textMeasure.outlineWidth = selectedOutlineWidth;
-                textMeasure.fontSize = selectedFontSize;
-
-                Vector2 size = textMeasure.GetPreferredValues(value);
-                if (value == " ")
-                {
-                    size.x = textMeasure.fontSize / 4.0f;
-                }
-
-                resultValue = (ushort)Math.Round(size.x) | ((ushort)Math.Round(size.y) << 16);
-            });
-
-            measuredCache.Add(value, resultValue);
-            return resultValue;
         }
 
         private static Vector2 GetPivotMultiplier(BillboardPivot pivot)

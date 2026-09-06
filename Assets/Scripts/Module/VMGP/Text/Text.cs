@@ -27,6 +27,7 @@ namespace Nofun.Module.VMGP
         private VMPtr<VMGPFont> activeFontPtr;
         private FontCache fontCache;
         private Font activeFont;
+        private readonly SystemFont systemFont = new();
 
         [ModuleCall]
         private VMPtr<VMGPFont> vSetActiveFont(VMPtr<VMGPFont> newFont)
@@ -62,8 +63,8 @@ namespace Nofun.Module.VMGP
         [ModuleCall]
         private uint vSelectFont(uint size, uint flags, ushort charShouldAvailable)
         {
-            system.GraphicDriver.SelectSystemFont(size, flags, (int)charShouldAvailable);
-            
+            systemFont.Select(size, flags);
+
             // Assume we use all
             return flags;
         }
@@ -72,34 +73,32 @@ namespace Nofun.Module.VMGP
         private void vTextOut(short x, short y, VMString text)
         {
             string textDraw = text.Get(system.Memory, false);
-            system.GraphicDriver.DrawSystemText(x, y, textDraw, GetColor(backgroundColor),
-                GetColor(foregroundColor));
+            systemFont.Draw(system.GraphicDriver, x, y, textDraw, GetColor(foregroundColor), GetColor(backgroundColor));
         }
 
         [ModuleCall]
         private void vTextOutU(short x, short y, VMString text)
         {
             string textDraw = text.Get(system.Memory, true);
-            system.GraphicDriver.DrawSystemText(x, y, textDraw, GetColor(backgroundColor),
-                GetColor(foregroundColor));
+            systemFont.Draw(system.GraphicDriver, x, y, textDraw, GetColor(foregroundColor), GetColor(backgroundColor));
         }
 
         [ModuleCall]
         private int vCharExtent(ushort charValue)
         {
-            return system.GraphicDriver.GetStringExtentRelativeToSystemFont(char.ConvertFromUtf32(charValue));
+            return systemFont.Extent(char.ConvertFromUtf32(charValue));
         }
 
         [ModuleCall]
         private int vTextExtent(VMString asciiString)
         {
-            return system.GraphicDriver.GetStringExtentRelativeToSystemFont(asciiString.Get(system.Memory, false));
+            return systemFont.Extent(asciiString.Get(system.Memory, false));
         }
 
         [ModuleCall]
         private int vTextExtentU(VMString utf16String)
         {
-            return system.GraphicDriver.GetStringExtentRelativeToSystemFont(utf16String.Get(system.Memory, true));
+            return systemFont.Extent(utf16String.Get(system.Memory, true));
         }
     }
 }
