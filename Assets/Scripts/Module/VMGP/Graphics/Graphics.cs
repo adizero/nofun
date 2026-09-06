@@ -171,10 +171,14 @@ namespace Nofun.Module.VMGP
         [ModuleCall]
         private void vFillRect(short x0, short y0, short x1, short y1)
         {
-            if ((x0 >= x1) || (y0 >= y1))
-            {
-                return;
-            }
+            // The corners may arrive in any order and the far corner is inclusive:
+            // pseudo-3D racers draw distant road rows with y0 == y1 and pass the
+            // bottom corner first for the ground strips beside the road, so
+            // normalize the rectangle instead of rejecting it.
+            int left = Math.Min(x0, x1);
+            int top = Math.Min(y0, y1);
+            int right = Math.Max(x0, x1) + 1;
+            int bottom = Math.Max(y0, y1) + 1;
 
             NRectangle clipRect = system.GraphicDriver.ClipRect;
 
@@ -183,7 +187,7 @@ namespace Nofun.Module.VMGP
                 system.GraphicDriver.ClipRect = new NRectangle(0, 0, system.GraphicDriver.ScreenWidth, system.GraphicDriver.ScreenHeight);
             }
 
-            system.GraphicDriver.FillRect(x0, y0, x1, y1, GetColor(foregroundColor));
+            system.GraphicDriver.FillRect(left, top, right, bottom, GetColor(foregroundColor));
 
             if (system.Version < SystemVersion.Version150)
             {
