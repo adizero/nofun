@@ -27,7 +27,6 @@ namespace Nofun.Settings
         public int screenSizeY;
         public SystemDeviceModel deviceModel;
         public bool enableSoftwareScissor;
-        public bool enablePseudo3DGroundFill;
         public int fps;
         public ScreenOrientation orientation;
         public SystemVersion systemVersion;
