@@ -20,11 +20,25 @@
     padding-bottom: 20px;
 }
 
+/* Long messages scroll inside the box instead of overflowing it: the scroll
+   view takes the flexible space and the label keeps its natural text height. */
+#TextScroll
+{
+    flex: 8 8 auto;
+    min-height: 0;
+}
+
+#TextScroll > .unity-scroll-view__content-viewport > .unity-scroll-view__content-container
+{
+    min-height: 100%;
+    justify-content: center;
+}
+
 #TextValue 
 {
     -unity-text-align: middle-center;
 
-    flex: 8 8 auto;
+    flex-shrink: 0;
     white-space: normal;
 }
 

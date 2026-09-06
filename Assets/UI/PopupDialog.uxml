@@ -2,7 +2,9 @@
     <Style src="project://database/Assets/UI/Stylesheet/PopupDialog.uss?fileID=7433441132597879392&amp;guid=c8a6b37eed7dcac46b9b61af59804288&amp;type=3#PopupDialog" />
     <ui:VisualElement name="MainBackground" style="max-width: 800px;">
         <ui:Label text="I want to be human" display-tooltip-when-elided="true" name="TitleValue" style="font-size: 30%;" />
-        <ui:Label text="I am a sample text but I desire to be a human. Do you agree?" display-tooltip-when-elided="true" name="TextValue" style="border-top-left-radius: 25px; border-bottom-left-radius: 25px; border-top-right-radius: 25px; border-bottom-right-radius: 25px; -unity-text-align: middle-center; flex-shrink: 12; flex-grow: 12; font-size: 30%;" />
+        <ui:ScrollView name="TextScroll" horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Auto">
+            <ui:Label text="I am a sample text but I desire to be a human. Do you agree?" display-tooltip-when-elided="true" name="TextValue" style="-unity-text-align: middle-center; font-size: 30%;" />
+        </ui:ScrollView>
         <ui:VisualElement name="Buttons">
             <ui:Button text="Cancel" display-tooltip-when-elided="true" name="LeftFar" class="PopupButton" style="font-size: 30%;" />
             <ui:Button text="No" display-tooltip-when-elided="true" name="Left" class="PopupButton" style="font-size: 30%;" />
