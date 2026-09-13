@@ -38,6 +38,7 @@ namespace Nofun.Module.VSound
 
         private const int SND_MAXVOLUME = 127;
         private const int SND_MINVOLUME = 0;
+        private const int SND_MAXPAN = 127;
 
         private VMSystem system;
         private SimpleObjectManager<IPcmSound> soundManager;
@@ -69,7 +70,8 @@ namespace Nofun.Module.VSound
             {
                 IPcmSound soundFromDriver = system.AudioDriver.LoadPCMSound(soundDataPtr, soundHeader[0].priority,
                     (int)soundHeader[0].frequency, soundHeader[0].channelCount,
-                    soundHeader[0].bitsPerSample, soundHeader[0].format == (uint)NativeVSndFormat.ADPCM);
+                    soundHeader[0].bitsPerSample, soundHeader[0].format == (uint)NativeVSndFormat.ADPCM,
+                    (int)soundHeader[0].loopStartFrame, (int)soundHeader[0].loopEndFrame);
 
                 return soundManager.Add(soundFromDriver);
             }
@@ -134,7 +136,8 @@ namespace Nofun.Module.VSound
 
                 IPcmSound soundFromDriver = system.AudioDriver.LoadPCMSound(body, header.priority,
                     (int)header.frequency, header.channelCount, header.bitsPerSample,
-                    header.format == (uint)NativeVSndFormat.ADPCM);
+                    header.format == (uint)NativeVSndFormat.ADPCM,
+                    (int)header.loopStartFrame, (int)header.loopEndFrame);
 
                 return soundManager.Add(soundFromDriver);
             }
@@ -193,6 +196,11 @@ namespace Nofun.Module.VSound
         [ModuleCall]
         private int vSoundDispose()
         {
+            foreach (var sound in soundManager)
+            {
+                sound.Dispose();
+            }
+
             soundManager.Reset();
             return SND_OK;
         }
@@ -236,40 +244,87 @@ namespace Nofun.Module.VSound
             switch (control)
             {
                 case NativeSoundControlCode.Play:
-                    soundPcm.Play();
+                    soundPcm.Play(LoopCountFromPlayParameter(parameters));
                     break;
 
                 case NativeSoundControlCode.Stop:
                     soundPcm.Stop();
                     break;
 
+                case NativeSoundControlCode.Pause:
+                    soundPcm.Pause();
+                    break;
+
+                case NativeSoundControlCode.Resume:
+                    soundPcm.Resume();
+                    break;
+
                 case NativeSoundControlCode.Volume:
                     if (parameters == -1)
                     {
-                        return (int)(soundPcm.Volume * SND_MAXVOLUME);
-                    }
-                    else
-                    {
-                        soundPcm.Volume = parameters / SND_MAXVOLUME;
-                        break;
+                        return (int)Math.Round(soundPcm.Volume * SND_MAXVOLUME);
                     }
 
+                    soundPcm.Volume = Math.Clamp(parameters, SND_MINVOLUME, SND_MAXVOLUME) / (float)SND_MAXVOLUME;
+                    break;
+
                 case NativeSoundControlCode.MasterVolume:
+                    if (parameters == -1)
+                    {
+                        return (int)Math.Round(system.AudioDriver.PcmMasterVolume * SND_MAXVOLUME);
+                    }
+
+                    system.AudioDriver.PcmMasterVolume = Math.Clamp(parameters, SND_MINVOLUME, SND_MAXVOLUME) / (float)SND_MAXVOLUME;
                     break;
 
                 case NativeSoundControlCode.Freq:
                     if (parameters == -1)
                     {
-                        return (int)(soundPcm.Frequency);
-                    }
-                    else
-                    {
-                        soundPcm.Frequency = parameters;
-                        break;
+                        return (int)soundPcm.Frequency;
                     }
 
-                case NativeSoundControlCode.StopLooping:
+                    if (parameters > 0)
+                    {
+                        soundPcm.Frequency = parameters;
+                    }
                     break;
+
+                case NativeSoundControlCode.Pan:
+                    if (parameters == -1)
+                    {
+                        return (int)Math.Round(soundPcm.Pan * SND_MAXPAN);
+                    }
+
+                    soundPcm.Pan = Math.Clamp(parameters, -SND_MAXPAN, SND_MAXPAN) / (float)SND_MAXPAN;
+                    break;
+
+                case NativeSoundControlCode.Status:
+                    return soundPcm.IsPlaying ? 1 : 0;
+
+                case NativeSoundControlCode.StopLooping:
+                    soundPcm.StopLooping();
+                    break;
+
+                case NativeSoundControlCode.Position:
+                    if (parameters == -1)
+                    {
+                        return soundPcm.Position;
+                    }
+
+                    soundPcm.Position = parameters;
+                    break;
+
+                case NativeSoundControlCode.Priority:
+                    if (parameters == -1)
+                    {
+                        return soundPcm.Priority;
+                    }
+
+                    soundPcm.Priority = parameters;
+                    break;
+
+                case NativeSoundControlCode.ChannelCount:
+                    return system.AudioDriver.SoundConfig.numMixerChannels;
 
                 default:
                     Logger.Error(LogClass.VSound, $"Unimplemented sound control command: {control}");
@@ -279,11 +334,20 @@ namespace Nofun.Module.VSound
             return SND_OK;
         }
 
+        // The play parameter carries the loop count in its low 16 bits: 0 plays
+        // once, 0xFFFF loops until stopped, anything else repeats that many
+        // extra times.
+        private static int LoopCountFromPlayParameter(int parameters)
+        {
+            int loopCount = parameters & 0xFFFF;
+            return (loopCount == 0xFFFF) ? -1 : loopCount;
+        }
+
         public void Dispose()
         {
             foreach (var sound in soundManager)
             {
-                sound.Stop();
+                sound.Dispose();
             }
         }
     }

@@ -20,12 +20,30 @@ namespace Nofun.Driver.Audio
 {
     public interface IPcmSound : IDisposable
     {
+        // loopCount: 0 plays once, a positive value repeats that many extra
+        // times, a negative value loops until stopped.
+        void Play(int loopCount = 0);
         void Stop();
         void Pause();
         void Resume();
-        void Play();
 
+        // Finish the current pass and stop instead of wrapping again.
+        void StopLooping();
+
+        bool IsPlaying { get; }
+
+        // 0..1
         float Volume { get; set; }
+
+        // Playback rate in Hz, changeable while playing.
         float Frequency { get; set; }
+
+        // -1 (left) .. 1 (right)
+        float Pan { get; set; }
+
+        // Playback position in frames.
+        int Position { get; set; }
+
+        int Priority { get; set; }
     }
 }

@@ -31,7 +31,10 @@ namespace Nofun.Driver.Audio
         public bool InitializePCMPlay();
 
         public IPcmSound LoadPCMSound(Span<byte> data, int priority, int frequency, int channelCount,
-            int bitsPerSample, bool isAdpcm);
+            int bitsPerSample, bool isAdpcm, int loopStartFrame = 0, int loopEndFrame = 0);
+
+        // Master volume applied to every PCM sound, 0..1.
+        public float PcmMasterVolume { get; set; }
 
         public IMusic LoadMusic(Stream musicData);
     }

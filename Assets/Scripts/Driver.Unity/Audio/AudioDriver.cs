@@ -29,17 +29,12 @@ namespace Nofun.Driver.Unity.Audio
         private const string DefaultSoundFontResourceName = "DefaultSfBank";
         private List<TSFMidiSound> activeMidiSounds = new();
         private List<TrackerMusic> activeTrackerMusics = new();
-        private Queue<AudioSource> freeAudioSources;
+        private List<PcmVoice> pcmVoices = new();
+        private float pcmMasterVolume = 1.0f;
         private int systemFrequencyRate;
 
         private float[] currentDest = null;
         private int currentChannelCount = 0;
-
-        [SerializeField]
-        private GameObject audioPlayerPrefab;
-
-        [SerializeField]
-        private GameObject audioContainer;
 
         private void LoadBank(byte[] bankData)
         {
@@ -65,7 +60,6 @@ namespace Nofun.Driver.Unity.Audio
             }
 
             LoadBank(asset.bytes);
-            freeAudioSources = new();
             systemFrequencyRate = AudioSettings.outputSampleRate;
         }
 
@@ -86,7 +80,7 @@ namespace Nofun.Driver.Unity.Audio
                 fixed (byte* dataPtr = data)
                 {
                     IntPtr handle = TSFMidiRenderer.Load((IntPtr)dataPtr, (uint)data.Length, loop ? 1 : 0);
-                    if (handle == null)
+                    if (handle == IntPtr.Zero)
                     {
                         throw new Exception("Failed to load the MIDI sound resource!");
                     }
@@ -135,7 +129,7 @@ namespace Nofun.Driver.Unity.Audio
                 {
                     for (int i = 0; i < count; i++)
                     {
-                        IntPtr compareTarget = (IntPtr)(freedHandles[0]);
+                        IntPtr compareTarget = (IntPtr)(freedHandles[i]);
                         TSFMidiSound foundRes = activeMidiSounds.Find(sound => sound.NativeHandle == compareTarget);
 
                         if (foundRes != null)
@@ -157,6 +151,14 @@ namespace Nofun.Driver.Unity.Audio
                 foreach (TrackerMusic sound in activeTrackerMusics)
                 {
                     sound.Update();
+                }
+            }
+
+            lock (pcmVoices)
+            {
+                foreach (PcmVoice voice in pcmVoices)
+                {
+                    voice.Render(data, channels, systemFrequencyRate, pcmMasterVolume);
                 }
             }
         }
@@ -183,31 +185,31 @@ namespace Nofun.Driver.Unity.Audio
         }
 
         public IPcmSound LoadPCMSound(Span<byte> data, int priority, int frequency, int channelCount,
-            int bitsPerSample, bool isAdpcm)
+            int bitsPerSample, bool isAdpcm, int loopStartFrame = 0, int loopEndFrame = 0)
         {
-            IPcmSound result = null;
-            byte[] dataArr = data.ToArray();
+            PcmVoice voice = new PcmVoice(this, data, frequency, channelCount, bitsPerSample, isAdpcm,
+                loopStartFrame, loopEndFrame, priority);
 
-            JobScheduler.Instance.RunOnUnityThreadSync(() =>
+            lock (pcmVoices)
             {
-                AudioSource freeSource = null;
-                if (freeAudioSources.Count == 0)
-                {
-                    GameObject source = Instantiate(audioPlayerPrefab, audioContainer.transform);
-                    freeSource = source.GetComponent<AudioSource>();
-                }
-                else
-                {
-                    lock (freeAudioSources)
-                    {
-                        freeSource = freeAudioSources.Dequeue();
-                    }
-                }
+                pcmVoices.Add(voice);
+            }
 
-                result = new PCMSound(this, freeSource, dataArr, frequency, channelCount, bitsPerSample, priority, isAdpcm);
-            });
+            return voice;
+        }
 
-            return result;
+        public void RemovePcmVoice(PcmVoice voice)
+        {
+            lock (pcmVoices)
+            {
+                pcmVoices.Remove(voice);
+            }
+        }
+
+        public float PcmMasterVolume
+        {
+            get => pcmMasterVolume;
+            set => pcmMasterVolume = Math.Clamp(value, 0.0f, 1.0f);
         }
 
         public IMusic LoadMusic(Stream musicData)
@@ -219,14 +221,6 @@ namespace Nofun.Driver.Unity.Audio
             else
             {
                 throw new InvalidOperationException("Unsupported music format!");
-            }
-        }
-
-        public void ReturnAudioSourceToFreePool(AudioSource source)
-        {
-            lock (freeAudioSources)
-            {
-                freeAudioSources.Enqueue(source);
             }
         }
 
