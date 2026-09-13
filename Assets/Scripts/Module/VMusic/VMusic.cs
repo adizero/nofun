@@ -52,37 +52,57 @@ namespace Nofun.Module.VMusic
         {
             foreach (var music in musicContainer)
             {
-                music.Stop();
+                music.Dispose();
             }
         }
 
         [ModuleCall]
         private int vMusicLoad(int handle, int type)
         {
+            IVMHostStream stream = null;
+            bool ownsStream = false;
+
             try
             {
                 switch ((LoadType)type)
                 {
-                    case LoadType.Resource:
-                    {
-                        IVMHostStream stream = system.VMStreamModule.Open("", (uint)StreamFlags.Read | (uint)StreamType.Resource | (uint)(handle << 16));
-                        if (stream != null)
-                        {
-                            return musicContainer.Add(system.AudioDriver.LoadMusic(new StandardStreamVM(stream)));
-                        }
-
+                    case LoadType.Stream:
+                        stream = system.VMStreamModule.GetStream(handle);
                         break;
-                    }
+
+                    case LoadType.Resource:
+                        stream = system.VMStreamModule.Open("", (uint)StreamFlags.Read | (uint)StreamType.Resource | (uint)(handle << 16));
+                        ownsStream = true;
+                        break;
+
+                    case LoadType.File:
+                        stream = system.VMStreamModule.Open(new VMString((uint)handle).Get(system.Memory),
+                            (uint)StreamFlags.Read | (uint)StreamType.File);
+                        ownsStream = true;
+                        break;
 
                     default:
-                    {
-                        throw new NotImplementedException($"Unsupported music load type {type}");
-                    }
+                        Logger.Error(LogClass.VMusic, $"Unsupported music load type {type}");
+                        return MUSIC_ERR;
                 }
+
+                if (stream == null)
+                {
+                    return MUSIC_ERR;
+                }
+
+                return musicContainer.Add(system.AudioDriver.LoadMusic(new StandardStreamVM(stream)));
             }
             catch (Exception ex)
             {
-                Logger.Error(LogClass.VMusic, $"Failed to load music (err={ex.ToString()}");
+                Logger.Error(LogClass.VMusic, $"Failed to load music (err={ex})");
+            }
+            finally
+            {
+                if (ownsStream && (stream != null))
+                {
+                    stream.OnClose();
+                }
             }
 
             return MUSIC_ERR;
@@ -108,14 +128,22 @@ namespace Nofun.Module.VMusic
                     musicPiece.Stop();
                     break;
 
+                case NativeMusicControlCode.Pause:
+                    musicPiece.Pause();
+                    break;
+
+                case NativeMusicControlCode.Resume:
+                    musicPiece.Resume();
+                    break;
+
                 case NativeMusicControlCode.Volume:
                     if (parameters == -1)
                     {
-                        return (int)(musicPiece.Volume * MUSIC_MAXVOLUME);
+                        return (int)Math.Round(musicPiece.Volume * MUSIC_MAXVOLUME);
                     }
                     else
                     {
-                        musicPiece.Volume = parameters / MUSIC_MAXVOLUME;
+                        musicPiece.Volume = Math.Clamp(parameters, MUSIC_MINVOLUME, MUSIC_MAXVOLUME) / (float)MUSIC_MAXVOLUME;
                         break;
                     }
 

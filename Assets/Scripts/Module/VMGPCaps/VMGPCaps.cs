@@ -131,7 +131,7 @@ namespace Nofun.Module.VMGPCaps
             {
                 SoundCapsLegacy caps = new SoundCapsLegacy()
                 {
-                    size = (ushort)Marshal.SizeOf<SoundCaps>(),
+                    size = (ushort)Marshal.SizeOf<SoundCapsLegacy>(),
                     flags = (ushort)system.AudioDriver.Capabilities
                 };
 

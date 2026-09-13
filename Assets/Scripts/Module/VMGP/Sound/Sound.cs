@@ -58,7 +58,7 @@ namespace Nofun.Module.VMGP
                     samples[i * 2 + 1] = (byte)(value >> 8);
                 }
 
-                beepSound?.Stop();
+                beepSound?.Dispose();
                 beepSound = system.AudioDriver.LoadPCMSound(samples, 0, BeepSampleRate, 1, 16, false);
                 beepSound.Play();
             }
@@ -111,8 +111,30 @@ namespace Nofun.Module.VMGP
                 dataRead = data.AsSpan(system.Memory, (int)length);
             }
 
-            currentSound = system.AudioDriver.PlaySound(soundType, dataRead, loop);
+            // Only standard MIDI files are playable; other resource types are
+            // accepted and ignored so games keep running without music.
+            if (!IsMidiData(dataRead))
+            {
+                Logger.Warning(LogClass.VMGPSound, $"Resource sound of type {soundType} is not MIDI, ignoring");
+                return 1;
+            }
+
+            try
+            {
+                currentSound = system.AudioDriver.PlaySound(SoundType.Midi, dataRead, loop);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(LogClass.VMGPSound, $"Failed to play resource sound: {ex.Message}");
+                return 0;
+            }
+
             return 1;
+        }
+
+        private static bool IsMidiData(ReadOnlySpan<byte> data)
+        {
+            return (data.Length >= 4) && (data[0] == 'M') && (data[1] == 'T') && (data[2] == 'h') && (data[3] == 'd');
         }
     }
 }

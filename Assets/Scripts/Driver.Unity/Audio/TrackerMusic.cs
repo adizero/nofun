@@ -31,6 +31,7 @@ namespace Nofun.Driver.Unity.Audio
         private global::SharpMik.Module playModule;
 
         private static bool MFXMModuleRegistered = false;
+        private bool paused = false;
 
         public static bool IsTrackerSound(Stream data)
         {
@@ -97,34 +98,42 @@ namespace Nofun.Driver.Unity.Audio
 
         public void Pause()
         {
-            if (!player.IsPlaying())
+            if (!player.IsPlaying() || paused)
             {
                 return;
             }
 
+            paused = true;
             driver.RemoveActiveTrackerSound(this);
             player.TogglePause();
         }
 
         public void Play()
         {
+            if (paused)
+            {
+                Resume();
+                return;
+            }
+
             if (player.IsPlaying())
             {
                 return;
             }
-            
+
             player.Play(playModule);
             driver.AddActiveTrackerSound(this);
         }
 
         public void Resume()
         {
-            if (player.IsPlaying())
+            if (!paused)
             {
                 return;
             }
 
-            Play();
+            paused = false;
+            player.TogglePause();
             driver.AddActiveTrackerSound(this);
         }
 
@@ -135,7 +144,16 @@ namespace Nofun.Driver.Unity.Audio
                 return;
             }
 
-            driver.RemoveActiveTrackerSound(this);
+            if (paused)
+            {
+                paused = false;
+                player.TogglePause();
+            }
+            else
+            {
+                driver.RemoveActiveTrackerSound(this);
+            }
+
             player.Stop();
         }
 
